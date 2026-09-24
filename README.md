@@ -26,14 +26,55 @@ sopan.
 
 - Deploy dari GitHub, Git URL, atau Docker Image langsung
 - Auto deploy tiap push (webhook GitHub)
+- **Git push deploy** — push ke remote Hikari, langsung build
 - Build Dockerfile, atau Railpack kalau nggak ada Dockerfile
 - Domain + HTTPS otomatis lewat Caddy
+- **Cloudflare auto-DNS** — bikin record A sendiri
 - Log container
 - Statistik CPU/RAM (diambil saat dibuka, nggak ada riwayat)
 - Batas RAM/CPU per app — **wajib**, biar satu app nggak matiin seluruh VPS
 - **Database terkelola**: PostgreSQL, MySQL, Redis
 - **Object storage** MinIO (S3-compatible)
-- Backup manual database, bisa di-download
+- Backup manual + **terjadwal**, restore dari file, bisa di-download
+
+## Git Push Deploy
+
+Hikari nggak ngejalanin SSH server sendiri. Yang dipakai sshd bawaan VPS,
+dengan `authorized_keys` yang command-nya dikunci ke `git-shell` — jadi deploy
+key-nya cuma bisa buat git, nggak bisa dapet shell.
+
+Setup sekali di VPS:
+
+```bash
+# 1. bikin user git
+sudo useradd -m -s /usr/bin/git-shell git
+sudo mkdir -p /home/git/.ssh && sudo chmod 700 /home/git/.ssh
+
+# 2. ambil authorized_keys dari Hikari (bikin deploy key dulu di tab Git)
+sudo curl -s http://127.0.0.1:2508/api/git/authorized-keys \
+  -H "Cookie: hikari_session=<cookie-kamu>" \
+  > /home/git/.ssh/authorized_keys
+sudo chown -R git:git /home/git/.ssh && sudo chmod 600 /home/git/.ssh/authorized_keys
+```
+
+Terus di folder repo kamu:
+
+```bash
+git remote add hikari git@IP-VPS:web.git
+git push hikari main
+```
+
+Bare repo-nya dibikin otomatis di `<dataDir>/repos/<slug>.git` tiap app dibuat.
+
+## Backup
+
+Backup manual lewat tombol di kartu database. Backup terjadwal **nggak pakai
+cron** — jadwalnya dicek tiap abis deploy sukses, jadi kalau nggak ada aktivitas,
+nggak ada backup. File-nya disimpen di `<dataDir>/backups`, dipangkas otomatis
+setelah 14 hari.
+
+Restore dari file `.sql` lewat tombol di kartu database. Dump-nya dibikin pakai
+`--clean --if-exists`, jadi bisa di-restore berulang kali tanpa bentrok tabel.
 
 ## Database
 
@@ -73,8 +114,22 @@ Environment=HIKARI_MINIO_IMAGE=minio/minio:latest
 
 ## Yang Belum Ada
 
-Git push deploy, terminal web, backup otomatis terjadwal, Cloudflare
-auto-DNS, GitHub App. Lihat `plan/2026-09-24-hikari-design.md` bagian Fase 3.
+Terminal web ke container sudah ada di backend (`terminal/session.ts`), tapi
+belum disambungin ke UI. GitHub App (bisa akses semua repo + kirim status balik)
+juga belum — sekarang masih pakai deploy key + webhook.
+
+## Verifikasi
+
+Ada 4 skrip yang nyalain server terus nguji hal yang nggak bisa dites lewat unit
+test — butuh Docker jalan:
+
+```bash
+bun run build
+bash verify-e2e.sh       # app: build, memory limit, port isolation, SPA
+bash verify-fase2.sh     # database: postgres sungguhan, backup, minio
+bash verify-gitpush.sh   # git push: bare repo, hook, git-shell
+bash verify-fase3.sh     # restore sungguhan, jadwal backup, terminal
+```
 
 ## Yang Sengaja Nggak Ada
 
