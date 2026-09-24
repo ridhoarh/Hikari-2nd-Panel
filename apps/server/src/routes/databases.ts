@@ -13,6 +13,11 @@ import {
 } from '../db/backup'
 import { describeDatabase, startDatabase, stopDatabase, changeAccessMode, destroyDatabase } from '../db/service'
 import { canRestore, restoreCommand, validateBackupContent } from '../db/restore'
+import {
+  backupScheduleInfo,
+  runAutoBackup,
+  setBackupIntervalHours,
+} from '../db/auto-backup'
 import { runDenganInput } from '../build/exec'
 import { dbContainerName } from '../docker/db-containers'
 import { run } from '../build/exec'
@@ -303,6 +308,39 @@ export function createDatabaseRoutes(deps: DatabaseRoutesDeps): Hono {
       const message = err instanceof Error ? err.message : String(err)
       return c.json({ error: `Restore gagal: ${message}` }, 500)
     }
+  })
+
+  // --- Backup otomatis terjadwal ---------------------------------------
+
+  router.get('/backup-schedule', (c) => {
+    return c.json(backupScheduleInfo(db))
+  })
+
+  router.post('/backup-schedule', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      intervalHours?: number
+    } | null
+
+    const jam = Number(body?.intervalHours ?? 0)
+    if (!Number.isFinite(jam) || jam < 0 || jam > 24 * 30) {
+      return c.json({ error: 'Interval-nya harus 0 sampai 720 jam' }, 400)
+    }
+
+    setBackupIntervalHours(db, jam)
+    return c.json({ ok: true, ...backupScheduleInfo(db) })
+  })
+
+  router.post('/backup-schedule/run', async (c) => {
+    // Dijalanin manual: intervalnya dipaksa 1 jam dan waktu terakhirnya
+    // dianggap udah lewat, jadi selalu due. Ngandelin nilai interval yang
+    // disimpen nggak bisa — kalau fiturnya dimatiin (0), nggak bakal due.
+    const hasil = await runAutoBackup({
+      db,
+      dataDir: deps.dataDir,
+      cryptoKey,
+      force: true,
+    })
+    return c.json(hasil)
   })
 
   return router

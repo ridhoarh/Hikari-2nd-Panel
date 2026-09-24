@@ -30,7 +30,20 @@ export const ENGINES: Record<DbEngine, EngineSpec> = {
       POSTGRES_HOST_AUTH_METHOD: 'scram-sha-256',
     }),
     dataDir: '/var/lib/postgresql/data',
-    dumpArgs: ({ user, dbName }) => ['pg_dump', '-U', user, '-d', dbName],
+    /**
+     * `--clean --if-exists` WAJIB: tanpa itu, dump-nya cuma punya CREATE
+     * TABLE tanpa DROP, jadi restore ke database yang udah ada isinya
+     * gagal dengan "relation already exists".
+     */
+    dumpArgs: ({ user, dbName }) => [
+      'pg_dump',
+      '-U',
+      user,
+      '-d',
+      dbName,
+      '--clean',
+      '--if-exists',
+    ],
   },
   mysql: {
     engine: 'mysql',
@@ -43,11 +56,17 @@ export const ENGINES: Record<DbEngine, EngineSpec> = {
       MYSQL_ROOT_PASSWORD: password,
     }),
     dataDir: '/var/lib/mysql',
+    /**
+     * `--add-drop-table` biar dump-nya bisa di-restore ke database yang
+     * udah ada isinya. Tanpa itu, CREATE TABLE-nya bentrok.
+     */
     dumpArgs: ({ user, password, dbName }) => [
       'mysqldump',
       '-u',
       user,
       `-p${password}`,
+      '--add-drop-table',
+      '--single-transaction',
       dbName,
     ],
   },

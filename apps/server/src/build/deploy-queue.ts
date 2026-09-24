@@ -9,6 +9,7 @@ export type DeployQueueDeps = {
   logDir: string
   workDir: string
   buildFn: (app: App, deploymentId: string) => Promise<{ imageTag: string }>
+  onDeploySuccess?: () => void
 }
 
 /**
@@ -25,6 +26,7 @@ export function createDeployQueue(deps: DeployQueueDeps) {
         logDir: deps.logDir,
         workDir: deps.workDir,
         buildFn: deps.buildFn,
+        onDeploySuccess: deps.onDeploySuccess,
       },
       appId
     )

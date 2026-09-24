@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { join } from 'node:path'
+import { runAutoBackup } from './db/auto-backup'
 import { createBuildFn } from './build/execute'
 import { createDeployQueue } from './build/deploy-queue'
 import { syncCaddy } from './caddy/service'
@@ -82,6 +83,12 @@ export function createApp(config: AppConfig): Hono {
       deployKeyDir,
       knownHostsPath,
     }),
+    onDeploySuccess: () => {
+      // Backup terjadwal dicek di jalur deploy, bukan pakai timer.
+      void runAutoBackup({ db, dataDir, cryptoKey }).catch((err) =>
+        console.error('[hikari] backup otomatis gagal:', err)
+      )
+    },
   })
 
   const app = new Hono()

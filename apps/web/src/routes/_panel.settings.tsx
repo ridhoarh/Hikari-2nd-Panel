@@ -6,6 +6,7 @@ import { AppShell } from '../components/layout/app-shell'
 import { Button } from '../components/ui/button'
 import { Card, CardBody, CardHeader } from '../components/ui/card'
 import { CloudflarePanel } from '../components/settings/cloudflare-panel'
+import { BackupSchedulePanel } from '../components/settings/backup-schedule-panel'
 
 export const Route = createFileRoute('/_panel/settings')({ component: SettingsPage })
 
@@ -89,6 +90,15 @@ function SettingsPage() {
                 </dd>
               </div>
             </dl>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-medium">Backup otomatis</h2>
+          </CardHeader>
+          <CardBody>
+            <BackupSchedulePanel />
           </CardBody>
         </Card>
 

@@ -19,7 +19,7 @@ describe('backupFilename', () => {
 })
 
 describe('backupCommand', () => {
-  test('postgres pakai pg_dump ke stdout', () => {
+  test('postgres pakai pg_dump dengan --clean biar bisa di-restore ulang', () => {
     const cmd = backupCommand({
       engine: 'postgres',
       containerName: 'hikari-db-01hxyz',
@@ -32,6 +32,10 @@ describe('backupCommand', () => {
     expect(cmd!.args).toContain('exec')
     expect(cmd!.args).toContain('hikari-db-01hxyz')
     expect(cmd!.args.join(' ')).toContain('pg_dump')
+    // Tanpa ini, restore ke database yang ada isinya gagal dengan
+    // "relation already exists".
+    expect(cmd!.args).toContain('--clean')
+    expect(cmd!.args).toContain('--if-exists')
   })
 
   test('postgres nggak butuh password di argumen (udah di container)', () => {
@@ -46,7 +50,7 @@ describe('backupCommand', () => {
     expect(cmd!.args.join(' ')).not.toContain('rahasia123')
   })
 
-  test('mysql pakai mysqldump', () => {
+  test('mysql pakai mysqldump dengan --add-drop-table', () => {
     const cmd = backupCommand({
       engine: 'mysql',
       containerName: 'hikari-db-01hxyz',
@@ -55,6 +59,7 @@ describe('backupCommand', () => {
       dbName: 'produksi',
     })
     expect(cmd!.args.join(' ')).toContain('mysqldump')
+    expect(cmd!.args).toContain('--add-drop-table')
   })
 
   test('redis balikin null karena nggak didukung', () => {

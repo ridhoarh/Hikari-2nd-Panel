@@ -32,6 +32,8 @@ export type DeployDeps = {
   logDir: string
   workDir: string
   buildFn: (app: App, deploymentId: string) => Promise<{ imageTag: string }>
+  /** Dipanggil abis deploy sukses. Dipakai buat backup terjadwal. */
+  onDeploySuccess?: () => void
 }
 
 export type DeployResult = { deploymentId: string; ok: boolean; error?: string }
@@ -115,6 +117,10 @@ export async function deployApp(
     // Pembersihan disk nempel di jalur deploy, bukan cron — sesuai prinsip
     // nggak ada proses yang nyala terus.
     pruneBuildLogs(logDir, BATAS_USIA_LOG_HARI)
+
+    // Backup terjadwal dicek di sini juga: ini satu-satunya momen yang
+    // emang "udah jalan", jadi nggak perlu timer terpisah.
+    deps.onDeploySuccess?.()
 
     return { deploymentId: deployment.id, ok: true }
   } catch (err) {
