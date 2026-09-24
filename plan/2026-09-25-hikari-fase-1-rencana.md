@@ -4476,7 +4476,7 @@ export async function deployApp(
         env,
         memoryLimitMb: app.memory_limit_mb,
         cpuLimit: app.cpu_limit,
-        network: 'hikari',
+        network: networkName(),
       },
       docker
     )
@@ -4533,6 +4533,11 @@ GIT_EDITOR=true git commit -m "feat(build): deploy pipeline that never kills a r
   - `DELETE /api/apps/:id` → `{ ok: true }`
   - `POST /api/apps/:id/deploy` → `{ deploymentId }` 202
   - `POST /api/apps/:id/stop` / `/restart` → `{ ok: true }`
+
+Catatan buat `restart`: dia **nggak** build ulang. Dia pakai image
+`hikari-<slug>:latest` dari deploy terakhir yang sukses, terus jalanin ulang
+container dengan env var yang diresolve ulang dari database. Env var wajib
+ikut — restart tanpa env var bikin app jalan tanpa konfigurasi.
   - `GET /api/apps/:id/status` → `{ status, container: { running, startedAt } | null, stats }`
   - `GET /api/apps/:id/logs?tail=200` → `{ lines }`
   - `GET /api/apps/:id/deployments` → `{ deployments }`
@@ -4751,6 +4756,47 @@ describe('kontrol app', () => {
   })
 })
 
+describe('restart', () => {
+  let appId: string
+
+  beforeEach(async () => {
+    const res = await app.request(`/api/projects/${projectId}/apps`, {
+      method: 'POST',
+      headers: auth(),
+      body: JSON.stringify({
+        name: 'Restart',
+        sourceType: 'image',
+        imageRef: 'nginx:alpine',
+        containerPort: 80,
+      }),
+    })
+    appId = ((await res.json()) as { app: { id: string } }).app.id
+  })
+
+  test('env var tetep kebaca setelah restart', async () => {
+    await app.request(`/api/apps/${appId}/env`, {
+      method: 'POST',
+      headers: auth(),
+      body: JSON.stringify({ key: 'DATABASE_URL', value: 'postgres://x', isSecret: false }),
+    })
+
+    const res = await app.request(`/api/apps/${appId}/restart`, {
+      method: 'POST',
+      headers: auth(),
+    })
+
+    // Tanpa Docker jalan, restart balikin 409. Yang penting: endpoint-nya
+    // nggak 500, dan env var-nya masih utuh.
+    expect([200, 409]).toContain(res.status)
+
+    const env = await app.request(`/api/apps/${appId}/env`, { headers: auth() })
+    const { envVars } = (await env.json()) as {
+      envVars: { key: string; value: string }[]
+    }
+    expect(envVars.find((v) => v.key === 'DATABASE_URL')?.value).toBe('postgres://x')
+  })
+})
+
 describe('proteksi login', () => {
   test('semua endpoint app butuh login', async () => {
     const paths = [
@@ -4791,10 +4837,11 @@ import { getProject } from '../repositories/projects'
 import {
   deleteEnvVar,
   listEnvVars,
+  resolveEnvVars,
   setEnvVar,
 } from '../repositories/env-vars'
 import { listDeployments } from '../repositories/deployments'
-import { getDocker, pingDocker } from '../docker/client'
+import { getDocker, networkName, pingDocker } from '../docker/client'
 import { decrypt } from '../lib/crypto'
 import { getContainerStats } from '../docker/stats'
 import { getLogs } from '../docker/logs'
@@ -4922,23 +4969,27 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
     if (!app) return c.json({ error: 'App nggak ketemu' }, 404)
 
     const docker = getDocker()
-    await stopContainer(docker, app.slug)
-
     const info = await inspectContainer(docker, app.slug)
     if (!info) {
-      setAppStatus(db, id, 'stopped')
       return c.json({ error: 'Container belum pernah dibuat. Deploy dulu.' }, 409)
     }
 
+    // Restart = matiin terus nyalain pakai image terakhir yang sukses.
+    // Env var HARUS diresolve ulang — kalau dikosongin, app-nya jalan tanpa
+    // konfigurasi dan gagal dengan gejala yang nggak nunjuk ke Hikari.
+    const image = `hikari-${app.slug}:latest`
+    const env = resolveEnvVars(db, id, cryptoKey)
+
+    await stopContainer(docker, app.slug)
     await runContainer(
       {
         appSlug: app.slug,
-        image: `hikari-${app.slug}:latest`,
+        image,
         containerPort: app.container_port,
-        env: {},
+        env,
         memoryLimitMb: app.memory_limit_mb,
         cpuLimit: app.cpu_limit,
-        network: 'hikari',
+        network: networkName(),
       },
       docker
     )
