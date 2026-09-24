@@ -51,3 +51,50 @@ export type ContainerStats = {
   memoryLimitMb: number
   memoryPercent: number
 }
+
+export type DbEngine = 'postgres' | 'mysql' | 'redis'
+export type AccessMode = 'internal' | 'tunnel' | 'public' | 'domain'
+export type DbStatus = 'stopped' | 'running' | 'failed'
+
+export type DbRecord = {
+  id: string
+  project_id: string
+  name: string
+  engine: DbEngine
+  version: string
+  db_name: string
+  db_user: string
+  volume_name: string
+  container_port: number
+  host_port: number
+  access_mode: AccessMode
+  expose_domain: string | null
+  status: DbStatus
+  memory_limit_mb: number
+  created_at: string
+}
+
+export type DbInfo = {
+  connectionString: string
+  tunnelCommand: string | null
+  endpoint: { host: string; port: number }
+  warnings: string[]
+}
+
+export type BackupRecord = {
+  id: string
+  database_id: string
+  filename: string
+  size_bytes: number
+  created_at: string
+}
+
+export type BucketRecord = {
+  id: string
+  project_id: string
+  name: string
+  access_key: string
+  secret_key: string
+  is_public: number
+  created_at: string
+}
