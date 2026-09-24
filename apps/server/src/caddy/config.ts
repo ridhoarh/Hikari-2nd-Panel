@@ -5,10 +5,21 @@ export type CaddyEntry = {
   dnsChallenge?: boolean
 }
 
+/**
+ * Database yang dibuka lewat domain. Bedanya sama CaddyEntry: yang ini TCP
+ * mentah, bukan HTTP, jadi nggak ada `reverse_proxy` — pakai `layer4`.
+ */
+export type CaddyTcpEntry = {
+  hostname: string
+  listenPort: number
+  upstreamPort: number
+}
+
 export type CaddyInput = {
   panelDomain?: string | null
   panelPort: number
   entries: CaddyEntry[]
+  tcpEntries?: CaddyTcpEntry[]
   acmeEmail?: string
   dnsProvider?: string
 }
@@ -45,6 +56,14 @@ function block(hostname: string, upstreamPort: number, entry?: CaddyEntry): stri
   return lines.join('\n')
 }
 
+function tcpBlock(entry: CaddyTcpEntry): string {
+  return [
+    `${entry.hostname}:${entry.listenPort} {`,
+    `  proxy 127.0.0.1:${entry.upstreamPort}`,
+    '}',
+  ].join('\n')
+}
+
 export function renderCaddyfile(input: CaddyInput): string {
   const parts: string[] = []
 
@@ -59,6 +78,11 @@ export function renderCaddyfile(input: CaddyInput): string {
 
   for (const entry of input.entries) {
     parts.push(block(entry.hostname, entry.upstreamPort, entry))
+  }
+
+  // Database lewat domain: TCP mentah ke 127.0.0.1:<host port>.
+  for (const entry of input.tcpEntries ?? []) {
+    parts.push(tcpBlock(entry))
   }
 
   return `${parts.join('\n\n')}\n`

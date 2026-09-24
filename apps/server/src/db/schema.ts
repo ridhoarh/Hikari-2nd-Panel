@@ -83,4 +83,46 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   received_at TEXT NOT NULL,
   status      TEXT NOT NULL DEFAULT 'received'
 );
+
+CREATE TABLE IF NOT EXISTS databases (
+  id            TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  engine        TEXT NOT NULL CHECK (engine IN ('postgres','mysql','redis')),
+  version       TEXT NOT NULL,
+  db_name       TEXT NOT NULL,
+  db_user       TEXT NOT NULL,
+  password      TEXT NOT NULL,
+  volume_name   TEXT NOT NULL,
+  container_port INTEGER NOT NULL,
+  host_port     INTEGER NOT NULL UNIQUE,
+  access_mode   TEXT NOT NULL DEFAULT 'internal'
+                CHECK (access_mode IN ('internal','tunnel','public','domain')),
+  expose_domain TEXT,
+  status        TEXT NOT NULL DEFAULT 'stopped'
+                CHECK (status IN ('stopped','running','failed')),
+  memory_limit_mb INTEGER NOT NULL DEFAULT 512,
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_databases_project ON databases(project_id);
+
+CREATE TABLE IF NOT EXISTS storage_buckets (
+  id             TEXT PRIMARY KEY,
+  project_id     TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL UNIQUE,
+  access_key     TEXT NOT NULL,
+  secret_key     TEXT NOT NULL,
+  is_public      INTEGER NOT NULL DEFAULT 0,
+  created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_buckets_project ON storage_buckets(project_id);
+
+CREATE TABLE IF NOT EXISTS backups (
+  id          TEXT PRIMARY KEY,
+  database_id TEXT NOT NULL REFERENCES databases(id) ON DELETE CASCADE,
+  filename    TEXT NOT NULL,
+  size_bytes  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_backups_db ON backups(database_id, created_at DESC);
 `

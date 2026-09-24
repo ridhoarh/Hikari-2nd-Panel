@@ -125,3 +125,49 @@ describe('renderCaddyfile', () => {
     expect(buka).toBe(tutup)
   })
 })
+
+describe('renderCaddyfile - database lewat domain (TCP)', () => {
+  test('nulis blok TCP dengan hostname:port', () => {
+    const out = renderCaddyfile({
+      panelPort: 2508,
+      entries: [],
+      tcpEntries: [
+        { hostname: 'db.contoh.com', listenPort: 20001, upstreamPort: 20001 },
+      ],
+    })
+    expect(out).toContain('db.contoh.com:20001 {')
+    expect(out).toContain('proxy 127.0.0.1:20001')
+  })
+
+  test('pakai proxy, bukan reverse_proxy', () => {
+    const out = renderCaddyfile({
+      panelPort: 2508,
+      entries: [],
+      tcpEntries: [
+        { hostname: 'db.contoh.com', listenPort: 20001, upstreamPort: 20001 },
+      ],
+    })
+    expect(out).toContain('proxy 127.0.0.1:20001')
+    // `reverse_proxy` cuma buat HTTP; kalau kepakai di blok TCP, Caddy nolak.
+    const blokTcp = out.slice(out.indexOf('db.contoh.com:20001 {'))
+    expect(blokTcp).not.toContain('reverse_proxy')
+  })
+
+  test('beberapa database ke-render semua', () => {
+    const out = renderCaddyfile({
+      panelPort: 2508,
+      entries: [],
+      tcpEntries: [
+        { hostname: 'db1.contoh.com', listenPort: 20001, upstreamPort: 20001 },
+        { hostname: 'db2.contoh.com', listenPort: 20002, upstreamPort: 20002 },
+      ],
+    })
+    expect(out).toContain('db1.contoh.com:20001')
+    expect(out).toContain('db2.contoh.com:20002')
+  })
+
+  test('nggak ada tcpEntries tetep valid', () => {
+    const out = renderCaddyfile({ panelPort: 2508, entries: [] })
+    expect(out).toContain('admin 127.0.0.1:2019')
+  })
+})

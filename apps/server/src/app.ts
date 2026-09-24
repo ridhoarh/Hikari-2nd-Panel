@@ -11,8 +11,10 @@ import { HIKARI_VERSION } from './lib/version'
 import { requireAuth } from './middleware/auth'
 import { createAppRoutes } from './routes/apps'
 import { createAuthRoutes } from './routes/auth'
+import { createDatabaseRoutes } from './routes/databases'
 import { createProjectRoutes } from './routes/projects'
 import { createSettingsRoutes } from './routes/settings'
+import { createStorageRoutes } from './routes/storage'
 import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
 import { mountStatic } from './static'
 
@@ -29,6 +31,8 @@ export type AppConfig = {
   caddyfilePath?: string
   panelDomain?: string | null
   acmeEmail?: string
+  /** Dipakai buat nampilin alamat yang bener di connection string publik. */
+  vpsIp?: string
 }
 
 export function createApp(config: AppConfig): Hono {
@@ -95,6 +99,10 @@ export function createApp(config: AppConfig): Hono {
   app.use('/api/projects', auth)
   app.use('/api/projects/*', auth)
   app.use('/api/apps/*', auth)
+  app.use('/api/databases/*', auth)
+  app.use('/api/buckets/*', auth)
+  app.use('/api/backups/*', auth)
+  app.use('/api/storage/*', auth)
 
   app.route('/api', createProjectRoutes(db))
   app.route('/api', createWebhookInfoRoute(db))
@@ -111,6 +119,20 @@ export function createApp(config: AppConfig): Hono {
       onDeploy: (appId) => void queue.enqueue(appId),
       onDomainChange: syncCaddySekarang,
     })
+  )
+  app.route(
+    '/api',
+    createDatabaseRoutes({
+      db,
+      cryptoKey,
+      dataDir,
+      vpsIp: config.vpsIp,
+      onDomainChange: syncCaddySekarang,
+    })
+  )
+  app.route(
+    '/api',
+    createStorageRoutes({ db, cryptoKey, dataDir, vpsIp: config.vpsIp })
   )
 
   // --- Frontend statis -------------------------------------------------

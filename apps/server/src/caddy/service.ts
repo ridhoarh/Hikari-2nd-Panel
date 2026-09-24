@@ -3,7 +3,8 @@ import { dirname } from 'node:path'
 import type { Database } from '../db/client'
 import { getApp } from '../repositories/apps'
 import { listAllDomains } from '../repositories/domains'
-import { renderCaddyfile, type CaddyEntry } from './config'
+import { renderCaddyfile, type CaddyEntry, type CaddyTcpEntry } from './config'
+import { listAllDatabases } from '../repositories/databases'
 
 export function writeCaddyfile(path: string, content: string): void {
   const dir = dirname(path)
@@ -50,10 +51,21 @@ export async function syncCaddy(deps: SyncDeps): Promise<void> {
     entries.push({ hostname: domain.hostname, upstreamPort: app.container_port, tls: true })
   }
 
+  // Database yang dibukain lewat domain: Caddy dengerin domain:hostPort dan
+  // nerusin TCP ke loopback. TLS-nya pakai sertifikat Let's Encrypt yang sama.
+  const tcpEntries: CaddyTcpEntry[] = listAllDatabases(deps.db)
+    .filter((d) => d.access_mode === 'domain' && d.expose_domain)
+    .map((d) => ({
+      hostname: d.expose_domain as string,
+      listenPort: d.host_port,
+      upstreamPort: d.host_port,
+    }))
+
   const content = renderCaddyfile({
     panelDomain: deps.panelDomain,
     panelPort: deps.panelPort,
     entries,
+    tcpEntries,
     acmeEmail: deps.acmeEmail,
   })
 
