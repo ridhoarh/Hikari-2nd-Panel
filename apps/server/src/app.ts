@@ -5,12 +5,16 @@ import { loadOrCreateKey } from './lib/crypto'
 import { HIKARI_VERSION } from './lib/version'
 import { createAuthRoutes } from './routes/auth'
 import { createProjectRoutes } from './routes/projects'
+import { createAppRoutes } from './routes/apps'
 import { requireAuth } from './middleware/auth'
 
 export type AppConfig = {
   dbPath: string
   keyPath: string
   port: number
+  deployKeyDir?: string
+  onDeploy?: (appId: string) => void
+  onDomainChange?: () => void
 }
 
 export function createApp(config: AppConfig): Hono {
@@ -26,8 +30,19 @@ export function createApp(config: AppConfig): Hono {
   const auth = requireAuth(db, cryptoKey)
   app.use('/api/projects', auth)
   app.use('/api/projects/*', auth)
+  app.use('/api/apps/*', auth)
 
   app.route('/api', createProjectRoutes(db))
+  app.route(
+    '/api',
+    createAppRoutes({
+      db,
+      cryptoKey,
+      deployKeyDir: config.deployKeyDir ?? '/var/lib/hikari/keys',
+      onDeploy: config.onDeploy ?? (() => undefined),
+      onDomainChange: config.onDomainChange ?? (() => undefined),
+    })
+  )
 
   app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
 
