@@ -6,6 +6,7 @@ import { HIKARI_VERSION } from './lib/version'
 import { createAuthRoutes } from './routes/auth'
 import { createProjectRoutes } from './routes/projects'
 import { createAppRoutes } from './routes/apps'
+import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
 import { requireAuth } from './middleware/auth'
 
 export type AppConfig = {
@@ -15,6 +16,7 @@ export type AppConfig = {
   deployKeyDir?: string
   onDeploy?: (appId: string) => void
   onDomainChange?: () => void
+  onPush?: (appId: string) => void
 }
 
 export function createApp(config: AppConfig): Hono {
@@ -27,12 +29,18 @@ export function createApp(config: AppConfig): Hono {
   app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
   app.route('/api', createAuthRoutes(db, cryptoKey))
 
+  // Webhook dijaga HMAC sendiri, jadi nggak lewat requireAuth. Middleware
+  // di Hono match berdasarkan prefix path, jadi /api/webhooks nggak pernah
+  // kena guard di bawah ini.
+  app.route('/api', createWebhookRoutes({ db, onPush: config.onPush ?? (() => undefined) }))
+
   const auth = requireAuth(db, cryptoKey)
   app.use('/api/projects', auth)
   app.use('/api/projects/*', auth)
   app.use('/api/apps/*', auth)
 
   app.route('/api', createProjectRoutes(db))
+  app.route('/api', createWebhookInfoRoute(db))
   app.route(
     '/api',
     createAppRoutes({

@@ -28,6 +28,13 @@ import {
   stopContainer,
 } from '../docker/containers'
 import { formatPublicKey, generateDeployKey } from '../lib/ssh-key'
+import {
+  addDomain,
+  listDomains,
+  removeDomain,
+  setTlsStatus,
+} from '../repositories/domains'
+import { validateHostname } from '../caddy/config'
 import type { Database } from '../db/client'
 
 const MASK = '••••••••'
@@ -267,6 +274,50 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
     const keyPath = join(deployKeyDir, app.slug)
     const { publicKey } = generateDeployKey(keyPath)
     return c.json({ publicKey: formatPublicKey(publicKey, app.slug) })
+  })
+
+  router.get('/apps/:id/domains', (c) => {
+    const id = c.req.param('id')
+    if (!getApp(db, id)) return c.json({ error: 'App nggak ketemu' }, 404)
+    return c.json({ domains: listDomains(db, id) })
+  })
+
+  router.post('/apps/:id/domains', async (c) => {
+    const id = c.req.param('id')
+    if (!getApp(db, id)) return c.json({ error: 'App nggak ketemu' }, 404)
+
+    const body = (await c.req.json().catch(() => null)) as { hostname?: string } | null
+    const check = validateHostname(body?.hostname ?? '')
+    if (!check.ok) return c.json({ error: check.reason }, 400)
+
+    const hostname = (body!.hostname as string).toLowerCase()
+
+    try {
+      const domain = addDomain(db, id, hostname)
+      deps.onDomainChange()
+      return c.json({ domain }, 201)
+    } catch {
+      return c.json({ error: 'Domain itu udah dipakai app lain' }, 409)
+    }
+  })
+
+  router.delete('/apps/:id/domains/:domainId', (c) => {
+    const id = c.req.param('id')
+    if (!getApp(db, id)) return c.json({ error: 'App nggak ketemu' }, 404)
+
+    const ok = removeDomain(db, c.req.param('domainId'))
+    if (!ok) return c.json({ error: 'Domain nggak ketemu' }, 404)
+
+    deps.onDomainChange()
+    return c.json({ ok: true })
+  })
+
+  router.post('/apps/:id/domains/:domainId/check', (c) => {
+    const id = c.req.param('id')
+    if (!getApp(db, id)) return c.json({ error: 'App nggak ketemu' }, 404)
+
+    setTlsStatus(db, c.req.param('domainId'), 'pending')
+    return c.json({ ok: true, tlsStatus: 'pending' })
   })
 
   return router
