@@ -1,48 +1,60 @@
-import type Docker from 'dockerode'
+import { run } from './exec'
 
-export const BUILDKIT_CONTAINER = 'hikari-buildkit'
+/**
+ * Builder buildx yang dikelola sendiri. Container BuildKit-nya dibikin dan
+ * diurus buildx, jadi Hikari nggak perlu bikin/dimatiin container manual.
+ */
+export const BUILDKIT_BUILDER = 'hikari-buildkit'
 export const BUILDKIT_MEMORY_MB = 768
-export const BUILDKIT_VOLUME = 'hikari-buildkit-cache'
 
-export function buildkitHost(): string {
-  return `docker-container://${BUILDKIT_CONTAINER}`
+export function builderName(): string {
+  return BUILDKIT_BUILDER
 }
 
 /**
- * BuildKit cuma nyala pas ada build, terus dimatiin lagi. Container-nya
- * dibikin lewat dockerode (bukan `docker run`) biar batas RAM-nya kepasang
- * di level API, nggak lewat parsing argumen CLI.
+ * Pastiin builder-nya ada dan jalan.
+ *
+ * Catatan: `docker buildx build --builder <nama>` butuh **nama builder yang
+ * terdaftar**, bukan URL container. Versi awal rencana pakai
+ * `docker-container://hikari-buildkit` dan itu selalu gagal dengan
+ * `no builder ... found`. Driver `docker-container` yang bikin buildx
+ * yang nyalain container BuildKit-nya, dan batas RAM dipasang lewat
+ * driver-opt.
  */
-export async function ensureBuildKit(docker: Docker): Promise<void> {
-  try {
-    const info = await docker.getContainer(BUILDKIT_CONTAINER).inspect()
-    if (info.State.Running) return
-    await docker.getContainer(BUILDKIT_CONTAINER).remove({ force: true })
-  } catch {
-    // belum ada, lanjut bikin
+export async function ensureBuildKit(): Promise<void> {
+  const ls = await run('docker', ['buildx', 'ls', '--format', '{{.Name}}']).catch(
+    () => ''
+  )
+
+  const sudahAda = ls
+    .split('\n')
+    .map((s) => s.trim())
+    .includes(BUILDKIT_BUILDER)
+
+  if (!sudahAda) {
+    await run('docker', [
+      'buildx',
+      'create',
+      '--name',
+      BUILDKIT_BUILDER,
+      '--driver',
+      'docker-container',
+      // Swap = memory, jadi beneran limit dan nggak pindah ke disk.
+      '--driver-opt',
+      `memory=${BUILDKIT_MEMORY_MB}m`,
+      '--driver-opt',
+      `memory-swap=${BUILDKIT_MEMORY_MB}m`,
+    ])
   }
 
-  await docker.createContainer({
-    name: BUILDKIT_CONTAINER,
-    Image: 'moby/buildkit:latest',
-    HostConfig: {
-      Privileged: true,
-      AutoRemove: false,
-      RestartPolicy: { Name: 'no' },
-      Memory: BUILDKIT_MEMORY_MB * 1024 * 1024,
-      // Swap = Memory, jadi limit-nya beneran limit, bukan pindah ke disk.
-      MemorySwap: BUILDKIT_MEMORY_MB * 1024 * 1024,
-      Binds: [`${BUILDKIT_VOLUME}:/var/lib/buildkit`],
-    },
-  })
-
-  await docker.getContainer(BUILDKIT_CONTAINER).start()
+  // Bootstrap bikin container BuildKit-nya nyala kalau belum.
+  await run('docker', ['buildx', 'inspect', BUILDKIT_BUILDER, '--bootstrap'])
 }
 
-export async function stopBuildKit(docker: Docker): Promise<void> {
-  try {
-    await docker.getContainer(BUILDKIT_CONTAINER).stop({ t: 5 })
-  } catch {
-    // emang udah mati
-  }
+/**
+ * Matiin container BuildKit biar RAM-nya balik. Builder-nya tetep terdaftar,
+ * jadi build berikutnya cuma perlu bootstrap lagi.
+ */
+export async function stopBuildKit(): Promise<void> {
+  await run('docker', ['buildx', 'stop', BUILDKIT_BUILDER]).catch(() => undefined)
 }

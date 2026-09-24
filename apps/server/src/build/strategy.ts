@@ -33,13 +33,16 @@ export function dockerBuildArgs(opts: {
   contextDir: string
   dockerfile: string
   tag: string
-  buildkitHost: string
+  builder: string
 }): string[] {
   return [
     'buildx',
     'build',
     '--builder',
-    opts.buildkitHost,
+    opts.builder,
+    // Path Dockerfile DIKIRIM ABSOLUT. Kalau cuma 'Dockerfile', buildx
+    // nyarinya relatif ke cwd proses, bukan ke context dir — dan itu gagal
+    // dengan "failed to read dockerfile: open Dockerfile: no such file".
     '-f',
     opts.dockerfile,
     '-t',

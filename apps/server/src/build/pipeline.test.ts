@@ -31,26 +31,40 @@ describe('markDeployResult', () => {
     expect(getApp(db, appId)?.status).toBe('running')
   })
 
-  test('gagal nggak matiin app yang udah running', () => {
+  test('gagal tapi container lama masih jalan: app tetap running', () => {
     const dep = createDeployment(db, appId)
-    markDeployResult(db, dep.id, appId, { ok: false, error: 'build gagal' })
+    markDeployResult(db, dep.id, appId, {
+      ok: false,
+      error: 'build gagal',
+      appMasihJalan: true,
+    })
     expect(getDeployment(db, dep.id)?.status).toBe('failed')
     expect(getDeployment(db, dep.id)?.error).toBe('build gagal')
     expect(getApp(db, appId)?.status).toBe('running')
   })
 
-  test('gagal pas app pertama kali deploy, status jadi failed', () => {
-    setAppStatus(db, appId, 'stopped')
+  test('gagal DAN container lama nggak jalan: app jadi failed', () => {
     const dep = createDeployment(db, appId)
-    markDeployResult(db, dep.id, appId, { ok: false, error: 'build gagal' })
+    markDeployResult(db, dep.id, appId, {
+      ok: false,
+      error: 'build gagal',
+      appMasihJalan: false,
+    })
     expect(getApp(db, appId)?.status).toBe('failed')
   })
 
-  test('gagal pas app lagi building (deploy pertama), status jadi failed', () => {
+  test('status building sebelum build nggak bikin keputusan salah', () => {
+    // Ini regresi: deployApp nge-set 'building' sebelum build, jadi kalau
+    // markDeployResult baca status dari database, app yang sebenarnya masih
+    // jalan bakal salah ditandain failed.
     setAppStatus(db, appId, 'building')
     const dep = createDeployment(db, appId)
-    markDeployResult(db, dep.id, appId, { ok: false, error: 'x' })
-    expect(getApp(db, appId)?.status).toBe('failed')
+    markDeployResult(db, dep.id, appId, {
+      ok: false,
+      error: 'x',
+      appMasihJalan: true,
+    })
+    expect(getApp(db, appId)?.status).toBe('running')
   })
 
   test('sukses nyimpen tag image', () => {

@@ -58,7 +58,7 @@ describe('dockerBuildArgs', () => {
     contextDir: '/tmp/repo',
     dockerfile: 'Dockerfile',
     tag: 'hikari-blog:01HXYZ',
-    buildkitHost: 'docker-container://hikari-buildkit',
+    builder: 'hikari-buildkit',
   })
 
   test('pakai buildx', () => {
@@ -66,10 +66,12 @@ describe('dockerBuildArgs', () => {
     expect(args).toContain('build')
   })
 
-  test('set builder ke buildkit host', () => {
+  test('set builder ke nama builder yang terdaftar', () => {
     const idx = args.indexOf('--builder')
     expect(idx).toBeGreaterThan(-1)
-    expect(args[idx + 1]).toBe('docker-container://hikari-buildkit')
+    // `--builder` butuh NAMA builder, bukan URL container.
+    expect(args[idx + 1]).toBe('hikari-buildkit')
+    expect(args[idx + 1]).not.toContain('://')
   })
 
   test('kasih tag yang bener', () => {
@@ -77,9 +79,20 @@ describe('dockerBuildArgs', () => {
     expect(args[idx + 1]).toBe('hikari-blog:01HXYZ')
   })
 
-  test('pakai path Dockerfile yang diminta', () => {
+  test('pakai path Dockerfile yang diminta (absolut, bukan relatif)', () => {
     const idx = args.indexOf('-f')
     expect(args[idx + 1]).toBe('Dockerfile')
+  })
+
+  test('path Dockerfile absolut biar nggak dicari relatif ke cwd proses', () => {
+    const absolut = dockerBuildArgs({
+      contextDir: '/tmp/repo',
+      dockerfile: '/tmp/repo/Dockerfile',
+      tag: 't',
+      builder: 'b',
+    })
+    const idx = absolut.indexOf('-f')
+    expect(absolut[idx + 1]).toBe('/tmp/repo/Dockerfile')
   })
 
   test('load hasilnya ke docker lokal', () => {

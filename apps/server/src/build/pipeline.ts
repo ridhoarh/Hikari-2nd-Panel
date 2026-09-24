@@ -40,10 +40,10 @@ export function markDeployResult(
   db: Database,
   deploymentId: string,
   appId: string,
-  result: { ok: true; imageTag: string } | { ok: false; error: string }
+  result:
+    | { ok: true; imageTag: string }
+    | { ok: false; error: string; appMasihJalan: boolean }
 ): void {
-  const app = getApp(db, appId)
-
   if (result.ok) {
     setDeploymentStatus(db, deploymentId, 'success', {
       imageTag: result.imageTag,
@@ -58,12 +58,12 @@ export function markDeployResult(
     finishedAt: nowIso(),
   })
 
-  // Kalau app-nya sebelumnya JALAN, jangan diubah. Deploy gagal nggak boleh
-  // bikin app yang hidup jadi mati. Status lain (stopped/building) berarti
-  // app-nya emang belum pernah hidup, jadi failed itu jawaban yang jujur.
-  if (app?.status !== 'running') {
-    setAppStatus(db, appId, 'failed')
-  }
+  // Deploy gagal nggak boleh bikin app yang hidup jadi keliatan mati.
+  //
+  // Patokannya BUKAN status app di database — deployApp udah nge-set
+  // 'building' sebelum build, jadi cek status di sini selalu salah. Yang
+  // dipakai: container lamanya beneran masih jalan apa nggak.
+  setAppStatus(db, appId, result.appMasihJalan ? 'running' : 'failed')
 }
 
 export async function deployApp(
@@ -87,9 +87,6 @@ export async function deployApp(
 
     const env = resolveEnvVars(db, appId, cryptoKey)
 
-    // Cek dulu container lamanya ada atau nggak, baru dimatiin. Kalau
-    // dibalik, container yang ternyata nggak ada tetap kena `stop` dan
-    // kita kehilangan informasi apakah app-nya sebelumnya jalan.
     const wasRunning = (await inspectContainer(docker, app.slug)) !== null
 
     if (wasRunning) {
@@ -122,7 +119,16 @@ export async function deployApp(
     return { deploymentId: deployment.id, ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    markDeployResult(db, deployment.id, appId, { ok: false, error: message })
+
+    // Cek beneran: container lamanya masih jalan nggak? Ini yang nentuin
+    // status app, bukan status sementara di database.
+    const masihJalan = (await inspectContainer(docker, app.slug)) !== null
+
+    markDeployResult(db, deployment.id, appId, {
+      ok: false,
+      error: message,
+      appMasihJalan: masihJalan,
+    })
     return { deploymentId: deployment.id, ok: false, error: message }
   }
 }
