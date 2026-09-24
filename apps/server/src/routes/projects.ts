@@ -5,6 +5,7 @@ import {
   createProject,
   deleteProject,
   getProject,
+  listDatabasesForProject,
   listProjects,
   updateProject,
 } from '../repositories/projects'
@@ -14,7 +15,18 @@ const upsertSchema = z.object({
   description: z.string().max(500).nullable().optional(),
 })
 
-export function createProjectRoutes(db: Database): Hono {
+export type ProjectRoutesDeps = {
+  db: Database
+  /**
+   * Dipanggil pas project dihapus. Container database-nya harus dibersihin,
+   * TAPI volume-nya dibiarin — data user nggak boleh hilang gara-gara
+   * salah klik.
+   */
+  onProjectDeleted?: (databases: { id: string; volume_name: string }[]) => void
+}
+
+export function createProjectRoutes(deps: ProjectRoutesDeps): Hono {
+  const { db } = deps
   const router = new Hono()
 
   router.get('/projects', (c) => {
@@ -47,9 +59,21 @@ export function createProjectRoutes(db: Database): Hono {
   })
 
   router.delete('/projects/:id', (c) => {
-    const ok = deleteProject(db, c.req.param('id'))
+    const id = c.req.param('id')
+
+    // Kumpulin dulu SEBELUM dihapus: abis barisnya hilang, relasi
+    // cascade-nya bikin datanya nggak bisa di-query lagi.
+    const databases = listDatabasesForProject(db, id)
+
+    const ok = deleteProject(db, id)
     if (!ok) return c.json({ error: 'Project nggak ketemu' }, 404)
-    return c.json({ ok: true })
+
+    deps.onProjectDeleted?.(databases)
+
+    return c.json({
+      ok: true,
+      volumeDipertahankan: databases.map((d) => d.volume_name),
+    })
   })
 
   return router

@@ -85,3 +85,17 @@ export function deleteProject(db: Database, id: string): boolean {
   const result = db.query('DELETE FROM projects WHERE id = ?').run(id)
   return result.changes > 0
 }
+
+/**
+ * Container database yang harus dibersihin kalau project-nya dihapus.
+ * Dipanggil SEBELUM baris project dihapus, karena abis itu datanya udah
+ * nggak bisa di-query lagi.
+ */
+export function listDatabasesForProject(
+  db: Database,
+  projectId: string
+): { id: string; name: string; volume_name: string }[] {
+  return db
+    .query('SELECT id, name, volume_name FROM databases WHERE project_id = ?')
+    .all(projectId) as { id: string; name: string; volume_name: string }[]
+}

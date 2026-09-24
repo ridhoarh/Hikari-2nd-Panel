@@ -7,6 +7,7 @@ import { syncCaddy } from './caddy/service'
 import { openDatabase } from './db/client'
 import { runMigrations } from './db/migrate'
 import { getDocker } from './docker/client'
+import { hapusDbContainer } from './docker/db-containers'
 import { loadOrCreateKey } from './lib/crypto'
 import { HIKARI_VERSION } from './lib/version'
 import { requireAuth } from './middleware/auth'
@@ -122,7 +123,28 @@ export function createApp(config: AppConfig): Hono {
   // itu hook post-receive dari shell, dan dia nggak punya cookie. Dijaga
   // pakai push-secret per app.
 
-  app.route('/api', createProjectRoutes(db))
+  app.route(
+    '/api',
+    createProjectRoutes({
+      db,
+      onProjectDeleted: (databases) => {
+        // Container-nya dibersihin, tapi VOLUME-NYA DIBIARIN. Hapus volume
+        // harus tindakan terpisah yang disengaja.
+        for (const d of databases) {
+          void hapusDbContainer(docker, d.id)
+            .then(() =>
+              console.log(
+                `[hikari] container database dihapus. Volume ${d.volume_name} ` +
+                  `dipertahankan — hapus manual: docker volume rm ${d.volume_name}`
+              )
+            )
+            .catch((err) =>
+              console.error(`[hikari] gagal bersihin container ${d.id}:`, err)
+            )
+        }
+      },
+    })
+  )
   app.route('/api', createWebhookInfoRoute(db))
   app.route(
     '/api',
