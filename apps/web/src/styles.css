@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* netral */
+  --bg: 255 255 255;
+  --surface: 255 255 255;
+  --surface-muted: 248 250 252;
+  --border: 226 232 240;
+  --text: 15 23 42;
+  --text-muted: 71 85 105;
+  --text-subtle: 148 163 184;
+
+  /* brand — light blue */
+  --brand: 14 165 233;
+  --brand-hover: 2 132 199;
+  --brand-soft: 224 242 254;
+  --brand-text: 3 105 161;
+
+  /* status — jangan dicampur sama brand */
+  --ok: 16 185 129;
+  --warn: 245 158 11;
+  --danger: 239 68 68;
+  --idle: 148 163 184;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* semua transisi pakai kurva ini, jangan linear/ease-in-out */
+.transition-hikari {
+  transition: all 400ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* fokus keyboard harus keliatan */
+:focus-visible {
+  outline: 2px solid rgb(var(--brand));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
