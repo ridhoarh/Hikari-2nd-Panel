@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { openDatabase } from './db/client'
 import { runMigrations } from './db/migrate'
+import { loadOrCreateKey } from './lib/crypto'
 import { HIKARI_VERSION } from './lib/version'
+import { createAuthRoutes } from './routes/auth'
 
 export type AppConfig = {
   dbPath: string
@@ -12,10 +14,12 @@ export type AppConfig = {
 export function createApp(config: AppConfig): Hono {
   const db = openDatabase(config.dbPath)
   runMigrations(db)
+  const cryptoKey = loadOrCreateKey(config.keyPath)
 
   const app = new Hono()
 
   app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
+  app.route('/api', createAuthRoutes(db, cryptoKey))
 
   app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
 
