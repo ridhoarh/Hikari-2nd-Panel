@@ -7,6 +7,16 @@ export const MINIO_API_PORT = 9000
 export const MINIO_CONSOLE_PORT = 9001
 const DEFAULT_MEMORY_MB = 512
 
+/**
+ * Image MinIO bisa diganti lewat env `HIKARI_MINIO_IMAGE`.
+ *
+ * Kenapa perlu: image resmi `minio/minio` di Docker Hub bisa jadi butuh
+ * login tergantung kebijakan dan jam aksesnya. Kalau pull-nya gagal, ganti
+ * aja ke mirror yang bisa dijangkau — nggak perlu ubah kode.
+ */
+export const MINIO_DEFAULT_IMAGE =
+  process.env.HIKARI_MINIO_IMAGE ?? 'ghcr.io/coollabsio/minio:latest'
+
 /** Endpoint buat app di VPS yang sama. */
 export function minioEndpoint(): string {
   return `http://${MINIO_CONTAINER}:${MINIO_API_PORT}`
@@ -22,6 +32,7 @@ export function buildMinioConfig(opts: {
   rootPassword: string
   memoryLimitMb?: number
   publicApi?: boolean
+  image?: string
 }): Docker.ContainerCreateOptions {
   const memoryMb =
     Number.isFinite(opts.memoryLimitMb) && (opts.memoryLimitMb as number) > 0
@@ -32,7 +43,7 @@ export function buildMinioConfig(opts: {
 
   return {
     name: MINIO_CONTAINER,
-    Image: 'minio/minio:latest',
+    Image: opts.image ?? MINIO_DEFAULT_IMAGE,
     Cmd: ['server', '/data', '--console-address', `:${MINIO_CONSOLE_PORT}`],
     Env: [
       `MINIO_ROOT_USER=${opts.rootUser}`,

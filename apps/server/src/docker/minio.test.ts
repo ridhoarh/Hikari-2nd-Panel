@@ -20,6 +20,17 @@ describe('buildMinioConfig', () => {
     expect(buildMinioConfig(base).HostConfig?.AutoRemove).toBe(false)
   })
 
+  test('pakai image default yang bisa di-override lewat env', () => {
+    const cfg = buildMinioConfig(base)
+    expect(cfg.Image).toBeDefined()
+    expect(cfg.Image).toContain('minio')
+  })
+
+  test('image bisa dikustom, karena registry MinIO bisa berubah', () => {
+    const cfg = buildMinioConfig({ ...base, image: 'minio/minio:latest' })
+    expect(cfg.Image).toBe('minio/minio:latest')
+  })
+
   test('memory limit wajib kepasang', () => {
     const cfg = buildMinioConfig(base)
     expect(cfg.HostConfig?.Memory).toBe(512 * 1024 * 1024)
