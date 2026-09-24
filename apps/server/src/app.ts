@@ -17,6 +17,7 @@ import { createSettingsRoutes } from './routes/settings'
 import { createStorageRoutes } from './routes/storage'
 import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
 import { createGitPushRoutes, setupRepoForApp } from './git-push/routes'
+import { createCloudflareRoutes } from './cloudflare/routes'
 import { listApps } from './repositories/apps'
 import { mountStatic } from './static'
 
@@ -109,6 +110,7 @@ export function createApp(config: AppConfig): Hono {
   app.use('/api/backups/*', auth)
   app.use('/api/storage/*', auth)
   app.use('/api/git/*', auth)
+  app.use('/api/cloudflare/*', auth)
   // CATATAN: /api/git-push/* SENGAJA nggak lewat requireAuth. Yang manggil
   // itu hook post-receive dari shell, dan dia nggak punya cookie. Dijaga
   // pakai push-secret per app.
@@ -153,6 +155,15 @@ export function createApp(config: AppConfig): Hono {
   app.route(
     '/api',
     createStorageRoutes({ db, cryptoKey, dataDir, vpsIp: config.vpsIp })
+  )
+  app.route(
+    '/api',
+    createCloudflareRoutes({
+      db,
+      cryptoKey,
+      vpsIp: config.vpsIp,
+      onDomainChange: syncCaddySekarang,
+    })
   )
 
   const gitApiUrl = `http://127.0.0.1:${config.port}`

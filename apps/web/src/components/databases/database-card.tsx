@@ -44,6 +44,7 @@ export function DatabaseCard({
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pesan, setPesan] = useState<string | null>(null)
+  const [fileRestore, setFileRestore] = useState<File | null>(null)
 
   // Mode akses yang lagi dipilih di form, plus konfirmasi + domain.
   const [mode, setMode] = useState<AccessMode>(database.access_mode)
@@ -128,6 +129,28 @@ export function DatabaseCard({
       return
     }
     onChanged()
+  }
+
+  async function restore() {
+    if (!fileRestore) return
+    setBusy('restore')
+    setError(null)
+    setPesan(null)
+
+    const isi = await fileRestore.text()
+    const res = await api.postText<{ pesan: string }>(
+      `/databases/${database.id}/restore`,
+      isi
+    )
+    setBusy(null)
+
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+
+    setPesan(res.data?.pesan ?? 'Data-nya udah di-restore.')
+    setFileRestore(null)
   }
 
   return (
@@ -294,6 +317,37 @@ export function DatabaseCard({
                       </a>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {database.engine !== 'redis' && (
+                <div className="mt-3">
+                  <label
+                    htmlFor={`restore-${database.id}`}
+                    className="block text-xs font-medium text-ink-muted"
+                  >
+                    Restore dari file
+                  </label>
+                  <input
+                    id={`restore-${database.id}`}
+                    type="file"
+                    accept=".sql,text/plain"
+                    onChange={(e) => setFileRestore(e.target.files?.[0] ?? null)}
+                    className="mt-1 block w-full text-xs"
+                  />
+                  <p className="mt-1 text-xs text-ink-subtle">
+                    Isi file backup bakal dimasukin ke database yang ada sekarang.
+                    Tabel yang namanya sama bisa ketimpa.
+                  </p>
+                  <div className="mt-2">
+                    <Button
+                      variant="danger"
+                      onClick={restore}
+                      disabled={busy !== null || !fileRestore}
+                    >
+                      {busy === 'restore' ? 'Nge-restore...' : 'Restore sekarang'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

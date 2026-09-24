@@ -12,6 +12,8 @@ import {
   writeBackupFile,
 } from '../db/backup'
 import { describeDatabase, startDatabase, stopDatabase, changeAccessMode, destroyDatabase } from '../db/service'
+import { canRestore, restoreCommand, validateBackupContent } from '../db/restore'
+import { runDenganInput } from '../build/exec'
 import { dbContainerName } from '../docker/db-containers'
 import { run } from '../build/exec'
 import { validateHostname } from '../caddy/config'
@@ -265,6 +267,42 @@ export function createDatabaseRoutes(deps: DatabaseRoutesDeps): Hono {
 
     deleteBackupRecord(db, id)
     return c.json({ ok: true })
+  })
+
+  /**
+   * Restore dari file backup yang di-upload. Isinya dikirim lewat stdin
+   * ke psql/mysql client di dalem container — bukan ditulis ke disk dulu,
+   * biar nggak perlu nampung file gede.
+   */
+  router.post('/databases/:id/restore', async (c) => {
+    const id = c.req.param('id')
+    const record = getDatabase(db, id)
+    if (!record) return c.json({ error: 'Database nggak ketemu' }, 404)
+
+    const engine = record.engine as DbEngine
+    if (!canRestore(engine)) {
+      return c.json({ error: `Restore belum didukung buat ${engine}` }, 400)
+    }
+
+    const isi = await c.req.text()
+    const valid = validateBackupContent(engine, isi)
+    if (!valid.ok) return c.json({ error: valid.reason }, 400)
+
+    const cmd = restoreCommand({
+      engine,
+      containerName: dbContainerName(record.id),
+      user: record.db_user,
+      dbName: record.db_name,
+    })
+    if (!cmd) return c.json({ error: 'Engine itu nggak didukung' }, 400)
+
+    try {
+      await runDenganInput(cmd.cmd, cmd.args, isi, 30 * 60 * 1000)
+      return c.json({ ok: true, pesan: 'Data-nya udah di-restore.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return c.json({ error: `Restore gagal: ${message}` }, 500)
+    }
   })
 
   return router

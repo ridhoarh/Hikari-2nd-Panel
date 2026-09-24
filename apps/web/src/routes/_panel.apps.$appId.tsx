@@ -12,10 +12,11 @@ import { AppStats } from '../components/apps/app-stats'
 import { AppLogs } from '../components/apps/app-logs'
 import { AppEnv } from '../components/apps/app-env'
 import { AppDomains } from '../components/apps/app-domains'
+import { AppGit } from '../components/apps/app-git'
 
 export const Route = createFileRoute('/_panel/apps/$appId')({ component: AppDetailPage })
 
-type Tab = 'overview' | 'deployments' | 'logs' | 'env' | 'domains'
+type Tab = 'overview' | 'deployments' | 'logs' | 'env' | 'domains' | 'git'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -23,6 +24,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'logs', label: 'Logs' },
   { id: 'env', label: 'Env' },
   { id: 'domains', label: 'Domains' },
+  { id: 'git', label: 'Git' },
 ]
 
 function AppDetailPage() {
@@ -184,6 +186,7 @@ function AppDetailPage() {
           {tab === 'domains' && (
             <AppDomains appId={appId} containerPort={app.container_port} />
           )}
+          {tab === 'git' && <AppGit appId={appId} />}
         </div>
       )}
     </AppShell>

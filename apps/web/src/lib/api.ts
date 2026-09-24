@@ -10,17 +10,23 @@ export type ApiClient = {
   post: <T>(path: string, body?: unknown) => Promise<ApiResult<T>>
   patch: <T>(path: string, body?: unknown) => Promise<ApiResult<T>>
   del: <T>(path: string) => Promise<ApiResult<T>>
+  /** Kirim teks mentah (bukan JSON). Dipakai buat restore backup SQL. */
+  postText: <T>(path: string, text: string) => Promise<ApiResult<T>>
 }
 
 export function createApiClient(fetchImpl: typeof fetch = fetch): ApiClient {
-  async function request<T>(path: string, init: RequestInit): Promise<ApiResult<T>> {
+  async function request<T>(
+    path: string,
+    init: RequestInit,
+    contentType = 'application/json'
+  ): Promise<ApiResult<T>> {
     const url = path.startsWith('/api') ? path : `/api${path}`
     try {
       const res = await fetchImpl(url, {
         ...init,
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': contentType,
           ...(init.headers ?? {}),
         },
       })
@@ -55,6 +61,8 @@ export function createApiClient(fetchImpl: typeof fetch = fetch): ApiClient {
     patch: (path, body) =>
       request(path, { method: 'PATCH', body: body === undefined ? undefined : JSON.stringify(body) }),
     del: (path) => request(path, { method: 'DELETE' }),
+    postText: (path, text) =>
+      request(path, { method: 'POST', body: text }, 'text/plain'),
   }
 }
 

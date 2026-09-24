@@ -86,3 +86,41 @@ export async function run(
 
   return awal + ekor
 }
+
+/**
+ * Sama kayak `run`, tapi stdin-nya diisi dari string. Dipakai buat restore
+ * database: isinya dikirim langsung, nggak perlu ditulis ke disk dulu.
+ */
+export async function runDenganInput(
+  cmd: string,
+  args: string[],
+  input: string,
+  timeoutMs: number
+): Promise<string> {
+  const proc = Bun.spawn([cmd, ...args], {
+    stdin: new Blob([input]),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+
+  const [out, err] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      proc.kill()
+      reject(new Error(`${cmd} kelamaan`))
+    }, timeoutMs)
+  })
+
+  try {
+    const code = await Promise.race([proc.exited, timeout])
+    if (code !== 0) throw new Error(`${cmd} gagal (exit ${code})\n${err}`)
+    return out
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
