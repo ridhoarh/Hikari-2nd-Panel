@@ -13,6 +13,8 @@ import { Route as PanelRouteImport } from './routes/_panel'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as PanelIndexRouteImport } from './routes/_panel.index'
+import { Route as PanelAppsAppIdRouteImport } from './routes/_panel.apps.$appId'
+import { Route as PanelProjectsProjectIdRouteImport } from './routes/_panel.projects.$projectId'
 
 const PanelRoute = PanelRouteImport.update({
   id: '/_panel',
@@ -33,16 +35,30 @@ const PanelIndexRoute = PanelIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PanelRoute,
 } as any)
+const PanelAppsAppIdRoute = PanelAppsAppIdRouteImport.update({
+  id: '/apps/$appId',
+  path: '/apps/$appId',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelProjectsProjectIdRoute = PanelProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => PanelRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof PanelIndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/apps/$appId': typeof PanelAppsAppIdRoute
+  '/projects/$projectId': typeof PanelProjectsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/': typeof PanelIndexRoute
+  '/apps/$appId': typeof PanelAppsAppIdRoute
+  '/projects/$projectId': typeof PanelProjectsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +66,22 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/_panel/': typeof PanelIndexRoute
+  '/_panel/apps/$appId': typeof PanelAppsAppIdRoute
+  '/_panel/projects/$projectId': typeof PanelProjectsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/setup'
+  fullPaths: '/' | '/login' | '/setup' | '/apps/$appId' | '/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/setup' | '/'
-  id: '__root__' | '/_panel' | '/login' | '/setup' | '/_panel/'
+  to: '/login' | '/setup' | '/' | '/apps/$appId' | '/projects/$projectId'
+  id:
+    | '__root__'
+    | '/_panel'
+    | '/login'
+    | '/setup'
+    | '/_panel/'
+    | '/_panel/apps/$appId'
+    | '/_panel/projects/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,15 +120,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PanelIndexRouteImport
       parentRoute: typeof PanelRoute
     }
+    '/_panel/apps/$appId': {
+      id: '/_panel/apps/$appId'
+      path: '/apps/$appId'
+      fullPath: '/apps/$appId'
+      preLoaderRoute: typeof PanelAppsAppIdRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/projects/$projectId': {
+      id: '/_panel/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof PanelProjectsProjectIdRouteImport
+      parentRoute: typeof PanelRoute
+    }
   }
 }
 
 interface PanelRouteChildren {
   PanelIndexRoute: typeof PanelIndexRoute
+  PanelAppsAppIdRoute: typeof PanelAppsAppIdRoute
+  PanelProjectsProjectIdRoute: typeof PanelProjectsProjectIdRoute
 }
 
 const PanelRouteChildren: PanelRouteChildren = {
   PanelIndexRoute: PanelIndexRoute,
+  PanelAppsAppIdRoute: PanelAppsAppIdRoute,
+  PanelProjectsProjectIdRoute: PanelProjectsProjectIdRoute,
 }
 
 const PanelRouteWithChildren = PanelRoute._addFileChildren(PanelRouteChildren)
