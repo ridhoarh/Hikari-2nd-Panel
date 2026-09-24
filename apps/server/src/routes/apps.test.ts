@@ -18,7 +18,7 @@ beforeEach(async () => {
     dbPath: ':memory:',
     keyPath: join(dataDir, 'secret.key'),
     port: 2508,
-    deployKeyDir: join(dataDir, 'keys'),
+    dataDir,
   })
 
   await app.request('/api/setup', {

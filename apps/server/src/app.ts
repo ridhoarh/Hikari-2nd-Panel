@@ -1,39 +1,96 @@
 import { Hono } from 'hono'
+import { join } from 'node:path'
+import { createBuildFn } from './build/execute'
+import { createDeployQueue } from './build/deploy-queue'
+import { syncCaddy } from './caddy/service'
 import { openDatabase } from './db/client'
 import { runMigrations } from './db/migrate'
+import { getDocker } from './docker/client'
 import { loadOrCreateKey } from './lib/crypto'
 import { HIKARI_VERSION } from './lib/version'
+import { requireAuth } from './middleware/auth'
+import { createAppRoutes } from './routes/apps'
 import { createAuthRoutes } from './routes/auth'
 import { createProjectRoutes } from './routes/projects'
-import { createAppRoutes } from './routes/apps'
+import { createSettingsRoutes } from './routes/settings'
 import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
-import { requireAuth } from './middleware/auth'
+import { mountStatic } from './static'
 
+/**
+ * Handler rute dikumpulin di satu objek deps, bukan argumen posisional.
+ * Nambah field nggak bikin signature pecah.
+ */
 export type AppConfig = {
   dbPath: string
   keyPath: string
   port: number
-  deployKeyDir?: string
-  onDeploy?: (appId: string) => void
-  onDomainChange?: () => void
-  onPush?: (appId: string) => void
+  dataDir?: string
+  staticDir?: string
+  caddyfilePath?: string
+  panelDomain?: string | null
+  acmeEmail?: string
 }
 
 export function createApp(config: AppConfig): Hono {
+  const dataDir = config.dataDir ?? '/var/lib/hikari'
+
   const db = openDatabase(config.dbPath)
   runMigrations(db)
   const cryptoKey = loadOrCreateKey(config.keyPath)
 
+  const deployKeyDir = join(dataDir, 'keys')
+  const logDir = join(dataDir, 'logs')
+  const workDir = join(dataDir, 'work')
+  const knownHostsPath = join(dataDir, 'known_hosts')
+
+  const docker = getDocker()
+
+  // Satu fungsi sync Caddy dipakai bareng oleh onDomainChange dan tombol di
+  // halaman settings, biar argumennya nggak ditulis dua kali.
+  const syncCaddySekarang = () => {
+    void syncCaddy({
+      db,
+      caddyfilePath: config.caddyfilePath ?? '/etc/caddy/Caddyfile',
+      panelPort: config.port,
+      panelDomain: config.panelDomain ?? null,
+      adminUrl: 'http://127.0.0.1:2019/load',
+      acmeEmail: config.acmeEmail,
+    }).catch((err) => console.error('[hikari] sync caddy gagal:', err))
+  }
+
+  const queue = createDeployQueue({
+    db,
+    docker,
+    cryptoKey,
+    logDir,
+    workDir,
+    buildFn: createBuildFn({
+      db,
+      docker,
+      logDir,
+      workDir,
+      deployKeyDir,
+      knownHostsPath,
+    }),
+  })
+
   const app = new Hono()
 
+  // --- Health ---------------------------------------------------------
   app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
+
+  // --- Auth (publik) ---------------------------------------------------
   app.route('/api', createAuthRoutes(db, cryptoKey))
 
-  // Webhook dijaga HMAC sendiri, jadi nggak lewat requireAuth. Middleware
-  // di Hono match berdasarkan prefix path, jadi /api/webhooks nggak pernah
-  // kena guard di bawah ini.
-  app.route('/api', createWebhookRoutes({ db, onPush: config.onPush ?? (() => undefined) }))
+  // --- Webhook (publik, dijaga HMAC sendiri) ---------------------------
+  // Middleware di Hono match berdasarkan prefix path, jadi /api/webhooks
+  // nggak pernah kena requireAuth di bawah ini.
+  app.route(
+    '/api',
+    createWebhookRoutes({ db, onPush: (appId) => void queue.enqueue(appId) })
+  )
 
+  // --- Semua sisanya butuh login --------------------------------------
   const auth = requireAuth(db, cryptoKey)
   app.use('/api/projects', auth)
   app.use('/api/projects/*', auth)
@@ -43,14 +100,25 @@ export function createApp(config: AppConfig): Hono {
   app.route('/api', createWebhookInfoRoute(db))
   app.route(
     '/api',
+    createSettingsRoutes({ db, dataDir, onSyncCaddy: syncCaddySekarang })
+  )
+  app.route(
+    '/api',
     createAppRoutes({
       db,
       cryptoKey,
-      deployKeyDir: config.deployKeyDir ?? '/var/lib/hikari/keys',
-      onDeploy: config.onDeploy ?? (() => undefined),
-      onDomainChange: config.onDomainChange ?? (() => undefined),
+      deployKeyDir,
+      onDeploy: (appId) => void queue.enqueue(appId),
+      onDomainChange: syncCaddySekarang,
     })
   )
+
+  // --- Frontend statis -------------------------------------------------
+  // Harus SEBELUM notFound. Kalau setelahnya, route SPA bakal ketelen
+  // notFound dan browser dapet JSON 404, bukan index.html.
+  if (config.staticDir) {
+    mountStatic(app, config.staticDir)
+  }
 
   app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
 

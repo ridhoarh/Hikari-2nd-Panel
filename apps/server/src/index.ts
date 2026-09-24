@@ -1,10 +1,18 @@
 import { createApp } from './app'
 
 const PORT = Number(process.env.HIKARI_PORT ?? 2508)
-const DB_PATH = process.env.HIKARI_DB ?? '/var/lib/hikari/hikari.sqlite'
-const KEY_PATH = process.env.HIKARI_KEY ?? '/var/lib/hikari/secret.key'
+const DATA_DIR = process.env.HIKARI_DATA ?? '/var/lib/hikari'
 
-const app = createApp({ dbPath: DB_PATH, keyPath: KEY_PATH, port: PORT })
+const app = createApp({
+  dbPath: process.env.HIKARI_DB ?? `${DATA_DIR}/hikari.sqlite`,
+  keyPath: process.env.HIKARI_KEY ?? `${DATA_DIR}/secret.key`,
+  port: PORT,
+  dataDir: DATA_DIR,
+  staticDir: process.env.HIKARI_STATIC ?? `${DATA_DIR}/www`,
+  caddyfilePath: process.env.HIKARI_CADDYFILE ?? '/etc/caddy/Caddyfile',
+  panelDomain: process.env.HIKARI_PANEL_DOMAIN ?? null,
+  acmeEmail: process.env.HIKARI_ACME_EMAIL,
+})
 
 console.log(`[hikari] jalan di http://0.0.0.0:${PORT}`)
 
