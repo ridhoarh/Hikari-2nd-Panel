@@ -106,8 +106,6 @@ hikari/
 ├── apps/
 │   ├── web/                    # Vite + React + TanStack Router
 │   └── server/                 # Bun + Hono
-├── packages/
-│   └── shared/                 # tipe barengan (skema zod + turunannya)
 ├── docker/
 │   ├── buildkit/               # setelan BuildKit
 │   └── caddy/                  # template Caddyfile
@@ -122,9 +120,9 @@ hikari/
 | Bagian | Pilihannya | Kenapa |
 |---|---|---|
 | Frontend | Vite + React + TanStack Router | TanStack Start masih RC; Router-nya udah v1 stabil. Panel admin nggak butuh SSR |
-| Tampilan | Tailwind + shadcn/ui | shadcn itu kodenya disalin ke repo kita, bukan dependensi. Dark mode udah siap |
+| Tampilan | Tailwind + komponen ditulis sendiri | Cukup card, tombol, tab, status dot. Nggak perlu design system lengkap buat panel satu orang |
 | Backend | Bun + Hono | Satu proses, sekaligus ngasih API + file statis. Bun ~60–90MB, lebih hemat dari Node |
-| Bahasa | TypeScript dari depan sampai belakang | Satu bahasa, tipenya nyambung lewat `packages/shared` |
+| Bahasa | TypeScript dari depan sampai belakang | Satu bahasa. Tipe yang dipakai bareng dikit, jadi ditulis langsung di `apps/web/src/lib/types.ts` — nggak perlu paket workspace sendiri |
 | Database internal | SQLite pakai `bun:sqlite` | Nggak ada proses tambahan. Hemat ~200MB dibanding Postgres |
 | Ngobrol sama Docker | `dockerode` | API-nya lengkap, udah matang (4.9k ⭐ di 2026) |
 | Proxy | Caddy | HTTPS otomatis tanpa setelan ribet; Caddyfile cuma 2 baris per app |
@@ -190,10 +188,10 @@ Hikari-nya belum jalan. Dua cara, dua-duanya ditulis di README:
 
 ```bash
 # Cepat
-curl -fsSL https://raw.githubusercontent.com/USERNAME/hikari/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh | sudo bash
 
 # Aman (baca dulu, baru jalanin)
-curl -fsSL https://raw.githubusercontent.com/USERNAME/hikari/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh -o install.sh
 less install.sh && sudo bash install.sh
 ```
 

@@ -3,6 +3,10 @@
 > **Buat yang ngerjain:** WAJIB pakai skill `subagent-driven-development` atau
 > `executing-plans` buat ngerjain rencana ini task per task. Centang (`- [ ]`)
 > buat nandain progress.
+>
+> **Baca dulu "Kesepakatan yang Mengikat Semua Task"** di bawah — sepuluh aturan
+> itu yang bikin dokumen ini konsisten. Kalau ada langkah yang kelihatan
+> bertentangan, yang menang kesepakatannya.
 
 **Tujuan:** Bikin Hikari bisa dipakai buat login, ngatur project & app, deploy app
 dari GitHub/Docker Image ke Docker, dan ngasih domain + HTTPS otomatis.
@@ -11,8 +15,8 @@ dari GitHub/Docker Image ke Docker, dan ngasih domain + HTTPS otomatis.
 statis hasil build Vite. State di SQLite. Ngobrol sama Docker lewat dockerode.
 Caddy ngurus HTTPS. Build lewat BuildKit terpisah yang dibatasin RAM.
 
-**Teknologi:** Bun 1.4+, Hono, Vite, React, TanStack Router, Tailwind, shadcn/ui,
-SQLite (bun:sqlite), dockerode, Caddy, BuildKit, Zod
+**Teknologi:** Bun 1.4+, Hono, Vite, React, TanStack Router, Tailwind,
+komponen UI ditulis sendiri, SQLite (bun:sqlite), dockerode, Caddy, BuildKit, Zod
 
 **Rancangan:** `plan/2026-09-24-hikari-design.md` — baca dua-duanya.
 
@@ -35,6 +39,37 @@ SQLite (bun:sqlite), dockerode, Caddy, BuildKit, Zod
 - **Kalau build gagal, container lama tetap jalan.** Jangan pernah matiin app
   gara-gara deploy gagal.
 - **Test dulu, kode belakangan.** Tiap task mulai dari test yang gagal.
+
+## Kesepakatan yang Mengikat Semua Task
+
+Sepuluh keputusan di bawah ini berlaku buat **semua** task. Kalau ada langkah di
+bawah yang kelihatannya bertentangan, yang menang adalah kesepakatan ini.
+
+1. **`app.ts` punya satu bentuk final.** Task 1–23 nggak boleh nyentuh `app.ts`
+   sama sekali. Bentuk finalnya baru ditulis lengkap di **Task 36**, dan task
+   sesudahnya cuma boleh nambah baris, bukan ngeganti isi file. Nggak ada lagi
+   "Ganti `apps/server/src/app.ts` jadi:" — itu sumber kekacauan.
+2. **Router dipasang sekali.** Tiap file route punya satu fungsi `create*Routes`
+   yang nerima satu objek `deps` (bukan argumen posisional), biar nambah field
+   nggak bikin signature berubah.
+3. **Build asynchronous.** Nggak boleh `execFileSync` di jalur build/deploy.
+   Semua proses git/docker/railpack pakai `Bun.spawn`, dengan timeout, dan
+   log-nya ngalir ke file. Alasan: proses sinkron bikin seluruh panel freeze.
+4. **Frontend dikirim async.** Nggak boleh `readFileSync` di handler route.
+   Pakai `Bun.file()`. Ada `Cache-Control` buat file ber-hash.
+5. **Auto-refresh cuma saat tab kelihatan.** Semua `setInterval` di frontend
+   wajib lewat hook `useVisibleInterval`, dan cuma jalan kalau
+   `document.visibilityState === 'visible'`. Interval minimum 10 detik.
+6. **Env var bukan rahasia ditampilin apa adanya.** Yang `is_secret` dikasih
+   `MASK`, yang biasa didekripsi dan dikirim nilainya.
+7. **Nama variabel enkripsi selalu `cryptoKey`.** Jangan pernah pakai `key` buat
+   Buffer kunci, biar nggak ketuker sama nama key env var.
+8. **`packages/shared` nggak dipakai.** Workspace cuma `apps/*`. Tipe frontend
+   hidup di `apps/web/src/lib/types.ts`.
+9. **Komponen UI ditulis sendiri.** Bukan shadcn/ui. Nggak ada `components.json`,
+   nggak ada CLI. Semua ada di `apps/web/src/components/ui/`.
+10. **Tiap task ditutup dengan `bun run typecheck` di root.** Kalau typecheck
+    merah, task-nya belum kelar — jangan lanjut ke task berikutnya.
 
 ## Yang Perlu Diawasi Lebih
 
@@ -73,7 +108,7 @@ poin di bawah udah ada tesnya di task yang bersangkutan:
 {
   "name": "hikari",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": ["apps/*"],
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "build": "bun run --filter web build",
@@ -180,7 +215,7 @@ Expected: selesai tanpa error, `node_modules` muncul
 
 ```bash
 git add .
-git commit -m "chore: setup monorepo skeleton"
+GIT_EDITOR=true git commit -m "chore: setup monorepo skeleton"
 ```
 
 ---
@@ -375,7 +410,7 @@ Expected: PASS — 3 tes lolos
 
 ```bash
 git add apps/server/src/db
-git commit -m "feat(db): sqlite client and schema migrations"
+GIT_EDITOR=true git commit -m "feat(db): sqlite client and schema migrations"
 ```
 
 ---
@@ -480,7 +515,7 @@ Expected: PASS — 8 tes lolos
 
 ```bash
 git add apps/server/src/lib
-git commit -m "feat(lib): ulid, iso time, and slug helpers"
+GIT_EDITOR=true git commit -m "feat(lib): ulid, iso time, and slug helpers"
 ```
 
 ---
@@ -587,7 +622,7 @@ Expected: FAIL — "Cannot find module './crypto'"
 
 ```typescript
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
 const ALGO = 'aes-256-gcm'
 const VERSION = 'v1'
@@ -630,7 +665,6 @@ export function loadOrCreateKey(path: string): Buffer {
 
   const key = generateKey()
   writeFileSync(path, key.toString('hex'), { mode: 0o600 })
-  chmodSync(path, 0o600)
   return key
 }
 ```
@@ -644,7 +678,7 @@ Expected: PASS — 9 tes lolos
 
 ```bash
 git add apps/server/src/lib/crypto.ts apps/server/src/lib/crypto.test.ts
-git commit -m "feat(lib): aes-256-gcm credential encryption"
+GIT_EDITOR=true git commit -m "feat(lib): aes-256-gcm credential encryption"
 ```
 
 ---
@@ -745,7 +779,7 @@ Expected: PASS — 6 tes lolos
 
 ```bash
 git add apps/server/src/lib/password.ts apps/server/src/lib/password.test.ts
-git commit -m "feat(lib): argon2id password hashing"
+GIT_EDITOR=true git commit -m "feat(lib): argon2id password hashing"
 ```
 
 ---
@@ -812,6 +846,11 @@ import { runMigrations } from './db/migrate'
 
 export const HIKARI_VERSION = '0.1.0'
 
+/**
+ * Versi ditaruh di file sendiri biar `settings.ts` bisa makai tanpa ngimpor
+ * `app.ts` — impor muter kayak gitu bikin bundler bingung.
+ */
+
 export type AppConfig = {
   dbPath: string
   keyPath: string
@@ -862,7 +901,7 @@ Expected: PASS — 2 tes lolos
 
 ```bash
 git add apps/server/src/app.ts apps/server/src/index.ts apps/server/src/app.test.ts
-git commit -m "feat(server): hono app skeleton with health check"
+GIT_EDITOR=true git commit -m "feat(server): hono app skeleton with health check"
 ```
 
 ---
@@ -1000,7 +1039,7 @@ Expected: PASS — 6 tes lolos
 
 ```bash
 git add apps/server/src/lib/session.ts apps/server/src/lib/session.test.ts
-git commit -m "feat(lib): signed session tokens"
+GIT_EDITOR=true git commit -m "feat(lib): signed session tokens"
 ```
 
 ---
@@ -1022,7 +1061,7 @@ git commit -m "feat(lib): signed session tokens"
   - `POST /api/auth/login` body `{ username, password }` → set cookie, `{ ok: true }`
   - `POST /api/auth/logout` → hapus cookie
   - `GET /api/auth/me` → `{ username }` atau 401
-  - `createAuthRoutes(db, key): Hono`
+  - `createAuthRoutes(db, cryptoKey): Hono`
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -1224,7 +1263,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
-export function createAuthRoutes(db: Database, key: Buffer): Hono {
+export function createAuthRoutes(db: Database, cryptoKey: Buffer): Hono {
   const router = new Hono()
 
   router.get('/setup/status', (c) => {
@@ -1267,7 +1306,7 @@ export function createAuthRoutes(db: Database, key: Buffer): Hono {
       return c.json({ error: 'Username atau password salah' }, 401)
     }
 
-    const token = createSession(user.id, key)
+    const token = createSession(user.id, cryptoKey)
     setCookie(c, SESSION_COOKIE, token, cookieOptions(false))
     return c.json({ ok: true })
   })
@@ -1281,7 +1320,7 @@ export function createAuthRoutes(db: Database, key: Buffer): Hono {
     const token = getCookie(c, SESSION_COOKIE)
     if (!token) return c.json({ error: 'Belum login' }, 401)
 
-    const session = verifySession(token, key)
+    const session = verifySession(token, cryptoKey)
     if (!session) return c.json({ error: 'Session nggak valid' }, 401)
 
     const user = findUserById(db, session.userId)
@@ -1294,61 +1333,23 @@ export function createAuthRoutes(db: Database, key: Buffer): Hono {
 }
 ```
 
-- [ ] **Step 5: Sambungin ke `app.ts`**
+- [ ] **Step 5: Jalanin semua tes**
 
-Ganti isi `apps/server/src/app.ts`:
-
-```typescript
-import { Hono } from 'hono'
-import { openDatabase } from './db/client'
-import { runMigrations } from './db/migrate'
-import { loadOrCreateKey } from './lib/crypto'
-import { createAuthRoutes } from './routes/auth'
-
-export const HIKARI_VERSION = '0.1.0'
-
-export type AppConfig = {
-  dbPath: string
-  keyPath: string
-  port: number
-}
-
-export function createApp(config: AppConfig): Hono {
-  const db = openDatabase(config.dbPath)
-  runMigrations(db)
-  const key = loadOrCreateKey(config.keyPath)
-
-  const app = new Hono()
-
-  app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
-  app.route('/api', createAuthRoutes(db, key))
-
-  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
-
-  app.onError((err, c) => {
-    console.error('[hikari] error:', err)
-    return c.json({ error: 'Ada yang salah di server' }, 500)
-  })
-
-  return app
-}
-```
-
-- [ ] **Step 6: Jalanin tes, pastiin lolos**
+Jangan nyentuh `app.ts` dulu. Bentuk finalnya baru ditulis sekali di Task 36.
 
 Run: `cd apps/server && bun test`
 Expected: PASS — semua tes lolos, termasuk yang lama
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/server/src
-git commit -m "feat(auth): first-run setup and login endpoints"
+GIT_EDITOR=true git commit -m "feat(auth): first-run setup, login, and route guards"
 ```
 
 ---
 
-## Task 9: Middleware Auth + Rate Limit Login
+## Task 8b: Kerangka Routes + Wiring `app.ts`
 
 **File:**
 - Create: `apps/server/src/middleware/auth.ts`
@@ -1360,7 +1361,7 @@ git commit -m "feat(auth): first-run setup and login endpoints"
 **Antarmuka:**
 - **Konsumsi:** `verifySession`, `findUserById`
 - **Menghasilkan:**
-  - `requireAuth(db, key)` — middleware Hono, nolak 401 kalau nggak login
+  - `requireAuth(db, cryptoKey)` — middleware Hono, nolak 401 kalau nggak login
   - `createRateLimiter(opts: { max: number; windowMs: number }): (key: string) => boolean`
   - Login dibatasi 5 percobaan per menit per IP
 
@@ -1451,12 +1452,12 @@ import { findUserById } from '../repositories/users'
 
 export type AuthVariables = { username: string; userId: string }
 
-export function requireAuth(db: Database, key: Buffer) {
+export function requireAuth(db: Database, cryptoKey: Buffer) {
   return createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
     const token = getCookie(c, SESSION_COOKIE)
     if (!token) return c.json({ error: 'Belum login' }, 401)
 
-    const session = verifySession(token, key)
+    const session = verifySession(token, cryptoKey)
     if (!session) return c.json({ error: 'Session nggak valid' }, 401)
 
     const user = findUserById(db, session.userId)
@@ -1476,7 +1477,7 @@ Ganti fungsi `createAuthRoutes` jadi nerima limiter:
 ```typescript
 export function createAuthRoutes(
   db: Database,
-  key: Buffer,
+  cryptoKey: Buffer,
   loginLimiter = createRateLimiter({ max: 5, windowMs: 60_000 })
 ): Hono {
 ```
@@ -1557,7 +1558,7 @@ Expected: PASS — semua tes lolos
 
 ```bash
 git add apps/server/src
-git commit -m "feat(auth): requireAuth middleware and login rate limiting"
+GIT_EDITOR=true git commit -m "feat(auth): requireAuth middleware and login rate limiting"
 ```
 
 ---
@@ -1770,7 +1771,7 @@ Expected: PASS — 11 tes lolos
 
 ```bash
 git add apps/server/src/repositories/projects.ts apps/server/src/repositories/projects.test.ts
-git commit -m "feat(projects): project repository with unique slugs"
+GIT_EDITOR=true git commit -m "feat(projects): project repository with unique slugs"
 ```
 
 ---
@@ -1975,33 +1976,18 @@ export function createProjectRoutes(db: Database): Hono {
 }
 ```
 
-- [ ] **Step 4: Sambungin ke `app.ts`**
+- [ ] **Step 4: Jalanin semua tes**
 
-Tambah import dan pemasangan route:
-
-```typescript
-import { createProjectRoutes } from './routes/projects'
-import { requireAuth } from './middleware/auth'
-```
-
-Di dalam `createApp`, setelah `app.route('/api', createAuthRoutes(db, key))`:
-
-```typescript
-  app.use('/api/projects', requireAuth(db, key))
-  app.use('/api/projects/*', requireAuth(db, key))
-  app.route('/api', createProjectRoutes(db))
-```
-
-- [ ] **Step 5: Jalanin semua tes**
+Jangan nyentuh `app.ts` dulu — nanti di Task 36.
 
 Run: `cd apps/server && bun test`
 Expected: PASS — semua lolos
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add apps/server/src
-git commit -m "feat(projects): CRUD endpoints behind auth"
+GIT_EDITOR=true git commit -m "feat(projects): CRUD endpoints behind auth"
 ```
 
 ---
@@ -2095,7 +2081,7 @@ Expected: PASS — 3 tes lolos
 
 ```bash
 git add apps/server/src/docker
-git commit -m "feat(docker): client and naming helpers"
+GIT_EDITOR=true git commit -m "feat(docker): client and naming helpers"
 ```
 
 ---
@@ -2176,7 +2162,7 @@ describe('buildContainerConfig', () => {
     expect(buildContainerConfig(base).HostConfig?.NetworkMode).toBe('hikari')
   })
 
-  test('container mati sendiri dibersihin', () => {
+  test('container TIDAK dihapus otomatis (dibersihin manual oleh Hikari)', () => {
     expect(buildContainerConfig(base).HostConfig?.AutoRemove).toBe(false)
   })
 
@@ -2302,7 +2288,7 @@ Expected: PASS — 11 tes lolos
 
 ```bash
 git add apps/server/src/docker/containers.ts apps/server/src/docker/containers.test.ts
-git commit -m "feat(docker): container config builder and lifecycle"
+GIT_EDITOR=true git commit -m "feat(docker): container config builder and lifecycle"
 ```
 
 ---
@@ -2371,7 +2357,11 @@ describe('parseStats', () => {
 
   test('nggak error kalau memory limit nol', () => {
     const nol = { ...raw, memory_stats: { usage: 100, limit: 0 } }
-    expect(parseStats(nol).memoryPercent).toBe(0)
+    const hasil = parseStats(nol)
+    // Harus angka 0, bukan NaN atau Infinity.
+    expect(hasil.memoryPercent).toBe(0)
+    expect(Number.isFinite(hasil.memoryPercent)).toBe(true)
+    expect(Number.isFinite(hasil.memoryUsedMb)).toBe(true)
   })
 })
 ```
@@ -2457,7 +2447,7 @@ Expected: PASS — 6 tes lolos
 
 ```bash
 git add apps/server/src/docker/stats.ts apps/server/src/docker/stats.test.ts
-git commit -m "feat(docker): on-demand container stats"
+GIT_EDITOR=true git commit -m "feat(docker): on-demand container stats"
 ```
 
 ---
@@ -2604,7 +2594,7 @@ Expected: PASS — 6 tes lolos
 
 ```bash
 git add apps/server/src/docker/logs.ts apps/server/src/docker/logs.test.ts
-git commit -m "feat(docker): container log parsing and fetch"
+GIT_EDITOR=true git commit -m "feat(docker): container log parsing and fetch"
 ```
 
 ---
@@ -2710,7 +2700,7 @@ Expected: PASS — 5 tes lolos
 
 ```bash
 git add apps/server/src/docker/maintenance.ts apps/server/src/docker/maintenance.test.ts
-git commit -m "feat(docker): network setup and image pruning"
+GIT_EDITOR=true git commit -m "feat(docker): network setup and image pruning"
 ```
 
 ---
@@ -3039,7 +3029,7 @@ Expected: PASS — 12 tes lolos
 
 ```bash
 git add apps/server/src/repositories/apps.ts apps/server/src/repositories/apps.test.ts
-git commit -m "feat(apps): app repository with globally unique slugs"
+GIT_EDITOR=true git commit -m "feat(apps): app repository with globally unique slugs"
 ```
 
 ---
@@ -3160,6 +3150,10 @@ Run: `cd apps/server && bun test src/repositories/env-vars.test.ts`
 Expected: FAIL — "Cannot find module './env-vars'"
 
 - [ ] **Step 3: Bikin `apps/server/src/repositories/env-vars.ts`**
+
+Catatan: parameter Buffer kunci namanya `keyBuf` di layer repository, dan
+`cryptoKey` di layer route. Jangan pernah pakai nama `key` buat Buffer kunci —
+itu nama key env var.
 
 ```typescript
 import type { Database } from '../db/client'
@@ -3354,7 +3348,7 @@ Expected: PASS — semua lolos
 
 ```bash
 git add apps/server/src/repositories
-git commit -m "feat(repos): env var encryption and deployment records"
+GIT_EDITOR=true git commit -m "feat(repos): env var encryption and deployment records"
 ```
 
 ---
@@ -3371,9 +3365,14 @@ git commit -m "feat(repos): env var encryption and deployment records"
 - **Menghasilkan:**
   - `BUILDKIT_CONTAINER = 'hikari-buildkit'`
   - `BUILDKIT_MEMORY_MB = 768`
-  - `buildkitRunArgs(buildkitHost: string): string[]` — argumen `docker run` (murni, bisa dites)
-  - `ensureBuildKit(docker, buildkitHost?): Promise<void>`
+  - `BUILDKIT_VOLUME = 'hikari-buildkit-cache'`
+  - `ensureBuildKit(docker): Promise<void>` — bikin container BuildKit yang dibatasin RAM
   - `stopBuildKit(docker): Promise<void>` — matiin setelah build, biar RAM balik
+
+Catatan: ada `buildkitRunArgs()` di versi lama rencana ini yang balikin array
+argumen `docker run`, tapi nggak pernah dipanggil karena pembuatan container
+lewat dockerode. Fungsi itu dihapus bareng tesnya — nyimpen kode mati yang
+dites doang itu jebakan, bukan pengaman.
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -3381,7 +3380,12 @@ Bikin `apps/server/src/build/buildkit.test.ts`:
 
 ```typescript
 import { describe, expect, test } from 'bun:test'
-import { BUILDKIT_CONTAINER, BUILDKIT_MEMORY_MB, buildkitRunArgs } from './buildkit'
+import {
+  BUILDKIT_CONTAINER,
+  BUILDKIT_MEMORY_MB,
+  BUILDKIT_VOLUME,
+  buildkitHost,
+} from './buildkit'
 
 describe('konfigurasi BuildKit', () => {
   test('nama container buildkit bener', () => {
@@ -3392,31 +3396,12 @@ describe('konfigurasi BuildKit', () => {
     expect(BUILDKIT_MEMORY_MB).toBe(768)
   })
 
-  test('argumen wajib ada: privileged, memory, name', () => {
-    const args = buildkitRunArgs('docker-container://hikari-buildkit')
-    const joined = args.join(' ')
-    expect(args).toContain('--privileged')
-    expect(args).toContain('--memory')
-    expect(args).toContain(`${BUILDKIT_MEMORY_MB}m`)
-    expect(args).toContain(BUILDKIT_CONTAINER)
+  test('volume cache punya nama tetap', () => {
+    expect(BUILDKIT_VOLUME).toBe('hikari-buildkit-cache')
   })
 
-  test('memory swap sama dengan memory biar nggak ngambil dari disk', () => {
-    const args = buildkitRunArgs('docker-container://hikari-buildkit')
-    const memIndex = args.indexOf('--memory')
-    const swapIndex = args.indexOf('--memory-swap')
-    expect(args[memIndex + 1]).toBe(`${BUILDKIT_MEMORY_MB}m`)
-    expect(args[swapIndex + 1]).toBe(`${BUILDKIT_MEMORY_MB}m`)
-  })
-
-  test('mount volume buildkit biar cache-nya awet', () => {
-    expect(buildkitRunArgs('x').join(' ')).toContain('hikari-buildkit-cache')
-  })
-
-  test('restart policy no, biar bisa dimatiin', () => {
-    const args = buildkitRunArgs('x')
-    const idx = args.indexOf('--restart')
-    expect(args[idx + 1]).toBe('no')
+  test('host buildkit nunjuk ke container-nya', () => {
+    expect(buildkitHost()).toBe(`docker-container://${BUILDKIT_CONTAINER}`)
   })
 })
 ```
@@ -3434,25 +3419,6 @@ import type Docker from 'dockerode'
 export const BUILDKIT_CONTAINER = 'hikari-buildkit'
 export const BUILDKIT_MEMORY_MB = 768
 export const BUILDKIT_VOLUME = 'hikari-buildkit-cache'
-
-export function buildkitRunArgs(buildkitHost: string): string[] {
-  return [
-    'run',
-    '-d',
-    '--name',
-    BUILDKIT_CONTAINER,
-    '--privileged',
-    '--restart',
-    'no',
-    '--memory',
-    `${BUILDKIT_MEMORY_MB}m`,
-    '--memory-swap',
-    `${BUILDKIT_MEMORY_MB}m`,
-    '-v',
-    `${BUILDKIT_VOLUME}:/var/lib/buildkit`,
-    'moby/buildkit:latest',
-  ]
-}
 
 export function buildkitHost(): string {
   return `docker-container://${BUILDKIT_CONTAINER}`
@@ -3495,13 +3461,13 @@ export async function stopBuildKit(docker: Docker): Promise<void> {
 - [ ] **Step 4: Jalanin tes, pastiin lolos**
 
 Run: `cd apps/server && bun test src/build/buildkit.test.ts`
-Expected: PASS — 6 tes lolos
+Expected: PASS — 4 tes lolos
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/server/src/build
-git commit -m "feat(build): memory-capped buildkit container"
+GIT_EDITOR=true git commit -m "feat(build): memory-capped buildkit container"
 ```
 
 ---
@@ -3649,7 +3615,7 @@ Expected: PASS — 4 tes lolos
 
 ```bash
 git add apps/server/src/build/queue.ts apps/server/src/build/queue.test.ts
-git commit -m "feat(build): serial build queue"
+GIT_EDITOR=true git commit -m "feat(build): serial build queue"
 ```
 
 ---
@@ -3667,9 +3633,15 @@ git commit -m "feat(build): serial build queue"
   - `generateDeployKey(): { publicKey: string; privateKey: string }` — pakai `ssh-keygen` ed25519
   - `formatPublicKey(publicKey: string, label: string): string` — buat ditampilin ke user
 - **Menghasilkan (git):**
-  - `gitEnv(privateKeyPath: string): Record<string, string>` — `GIT_SSH_COMMAND` yang bener
-  - `cloneRepo(opts): Promise<{ commitSha: string; commitMessage: string }>`
+  - `gitEnv(privateKeyPath: string, knownHostsPath: string): Record<string, string>` — `GIT_SSH_COMMAND` yang bener
+  - `pinKnownHosts(destPath: string): Promise<void>` — ambil host key GitHub/GitLab/Gitea sekali, buat verifikasi
+  - `cloneRepo(opts): Promise<{ commitSha, commitMessage, repoDir }>`
   - `repoDirName(appSlug, deploymentId): string`
+
+Catatan keamanan: versi lama rencana ini pakai `StrictHostKeyChecking=no` +
+`UserKnownHostsFile=/dev/null`, yang artinya **nggak ada verifikasi host sama
+sekali** — MITM bisa nyolong deploy key. Diganti jadi pin host key sekali lewat
+`ssh-keyscan` pas install, terus `StrictHostKeyChecking=yes`.
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -3705,16 +3677,23 @@ import { gitEnv, repoDirName } from './git'
 
 describe('gitEnv', () => {
   test('set GIT_SSH_COMMAND ke kunci yang dikasih', () => {
-    const env = gitEnv('/tmp/key')
+    const env = gitEnv('/tmp/key', '/tmp/known_hosts')
     expect(env.GIT_SSH_COMMAND).toContain('/tmp/key')
   })
 
-  test('matiin StrictHostKeyChecking biar nggak nunggu prompt', () => {
-    expect(gitEnv('/tmp/key').GIT_SSH_COMMAND).toContain('StrictHostKeyChecking=no')
+  test('pakai file known_hosts, bukan /dev/null', () => {
+    const cmd = gitEnv('/tmp/key', '/tmp/known_hosts').GIT_SSH_COMMAND
+    expect(cmd).toContain('UserKnownHostsFile=/tmp/known_hosts')
+    expect(cmd).not.toContain('/dev/null')
+  })
+
+  test('host key diverifikasi, bukan dimatiin', () => {
+    const cmd = gitEnv('/tmp/key', '/tmp/known_hosts').GIT_SSH_COMMAND
+    expect(cmd).toContain('StrictHostKeyChecking=yes')
   })
 
   test('matiin prompt password', () => {
-    expect(gitEnv('/tmp/key').GIT_SSH_COMMAND).toContain('BatchMode=yes')
+    expect(gitEnv('/tmp/key', '/tmp/kh').GIT_SSH_COMMAND).toContain('BatchMode=yes')
   })
 })
 
@@ -3773,14 +3752,54 @@ export function formatPublicKey(publicKey: string, label: string): string {
 - [ ] **Step 4: Bikin `apps/server/src/build/git.ts`**
 
 ```typescript
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
-export function gitEnv(privateKeyPath: string): Record<string, string> {
+/**
+ * Host yang known_hosts-nya perlu di-pin sekali. `ssh-keyscan` butuh network,
+ * jadi ini dijalani pas install, bukan tiap deploy.
+ */
+export const KNOWN_SSH_HOSTS = ['github.com', 'gitlab.com', 'codeberg.org']
+
+export function gitEnv(
+  privateKeyPath: string,
+  knownHostsPath: string
+): Record<string, string> {
   return {
-    GIT_SSH_COMMAND: `ssh -i ${privateKeyPath} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes`,
+    GIT_SSH_COMMAND: [
+      'ssh',
+      `-i ${privateKeyPath}`,
+      `-o UserKnownHostsFile=${knownHostsPath}`,
+      '-o StrictHostKeyChecking=yes',
+      '-o BatchMode=yes',
+    ].join(' '),
   }
+}
+
+/**
+ * Ambil host key dari daftar host dan tulis ke satu file known_hosts.
+ * Dipanggil pas install / sekali doang. Kalau gagal (server tanpa network),
+ * biarin aja — clone-nya nanti bakal error jelas, bukan diam-diam nggak aman.
+ */
+export async function pinKnownHosts(destPath: string): Promise<void> {
+  mkdirSync(dirname(destPath), { recursive: true })
+
+  const hasil: string[] = []
+  for (const host of KNOWN_SSH_HOSTS) {
+    const proc = Bun.spawn(['ssh-keyscan', '-t', 'ed25519,rsa', host], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const text = await new Response(proc.stdout).text()
+    const code = await proc.exited
+    if (code === 0 && text.trim()) hasil.push(text.trim())
+  }
+
+  if (hasil.length === 0) {
+    throw new Error('ssh-keyscan nggak dapet host key sama sekali')
+  }
+
+  await Bun.write(destPath, `${hasil.join('\n')}\n`)
 }
 
 export function repoDirName(appSlug: string, deploymentId: string): string {
@@ -3791,51 +3810,59 @@ export type CloneOptions = {
   repoUrl: string
   branch: string
   privateKeyPath: string
+  knownHostsPath: string
   workDir: string
   appSlug: string
   deploymentId: string
 }
 
-export function cloneRepo(opts: CloneOptions): {
+export async function cloneRepo(opts: CloneOptions): Promise<{
   commitSha: string
   commitMessage: string
   repoDir: string
-} {
+}> {
   const repoDir = join(opts.workDir, repoDirName(opts.appSlug, opts.deploymentId))
 
   if (existsSync(repoDir)) rmSync(repoDir, { recursive: true, force: true })
   mkdirSync(opts.workDir, { recursive: true })
 
-  execFileSync(
-    'git',
-    ['clone', '--depth', '1', '--branch', opts.branch, opts.repoUrl, repoDir],
-    { env: { ...process.env, ...gitEnv(opts.privateKeyPath) }, stdio: 'pipe' }
-  )
+  const env = { ...process.env, ...gitEnv(opts.privateKeyPath, opts.knownHostsPath) }
 
-  const commitSha = execFileSync('git', ['rev-parse', 'HEAD'], {
-    cwd: repoDir,
-    encoding: 'utf8',
-  }).trim()
+  async function git(args: string[], cwd?: string): Promise<string> {
+    const proc = Bun.spawn(['git', ...args], { cwd, env, stdout: 'pipe', stderr: 'pipe' })
+    const [out, err] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ])
+    const code = await proc.exited
+    if (code !== 0) throw new Error(`git ${args[0]} gagal (exit ${code})\n${err}`)
+    return out
+  }
 
-  const commitMessage = execFileSync('git', ['log', '-1', '--pretty=%s'], {
-    cwd: repoDir,
-    encoding: 'utf8',
-  }).trim()
+  await git(['clone', '--depth', '1', '--branch', opts.branch, opts.repoUrl, repoDir])
+
+  const commitSha = (await git(['rev-parse', 'HEAD'], repoDir)).trim()
+  const commitMessage = (await git(['log', '-1', '--pretty=%s'], repoDir)).trim()
 
   return { commitSha, commitMessage, repoDir }
 }
 ```
 
+Catatan: `rmSync` + clone ulang tiap deploy itu boros buat repo gede. Ini
+keputusan sadar buat Fase 1 — clone bersih tiap deploy lebih gampang dipercaya
+daripada state repo yang bisa ketarik ke mana-mana. Ganti ke `git fetch` +
+reset di Fase 3.
+
 - [ ] **Step 5: Jalanin tes, pastiin lolos**
 
 Run: `cd apps/server && bun test src/build/git.test.ts src/lib/ssh-key.test.ts`
-Expected: PASS — 4 tes lolos
+Expected: PASS — 7 tes lolos
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add apps/server/src/build/git.ts apps/server/src/build/git.test.ts apps/server/src/lib/ssh-key.ts apps/server/src/lib/ssh-key.test.ts
-git commit -m "feat(build): deploy key generation and git clone"
+GIT_EDITOR=true git commit -m "feat(build): deploy key generation and pinned-host git clone"
 ```
 
 ---
@@ -4007,7 +4034,7 @@ Expected: PASS — 8 tes lolos
 
 ```bash
 git add apps/server/src/build/strategy.ts apps/server/src/build/strategy.test.ts
-git commit -m "feat(build): dockerfile-first build strategy with railpack fallback"
+GIT_EDITOR=true git commit -m "feat(build): dockerfile-first build strategy with railpack fallback"
 ```
 
 ---
@@ -4022,11 +4049,13 @@ git commit -m "feat(build): dockerfile-first build strategy with railpack fallba
 - **Konsumsi:** `chooseBuildPlan`, `dockerBuildArgs`, `railpackArgs`, `imageTag`,
   `ensureBuildKit`, `stopBuildKit`, `cloneRepo`, `appendBuildLog`
 - **Menghasilkan:**
-  - `type ExecuteDeps = { db, docker, logDir, workDir, deployKeyDir, key }`
+  - `type ExecuteDeps = { db, docker, logDir, workDir, deployKeyDir }`
   - `createBuildFn(deps): (app: App, deploymentId: string) => Promise<{ imageTag: string }>`
   - Fungsi yang dibalikin **juga nge-tag `latest`**, biar tombol Restart punya image
   - BuildKit **dimatiin** setelah build selesai (biar RAM-nya balik)
   - `shouldTagLatest(kind): boolean` — image dari registry nggak perlu di-tag ulang
+  - `run(cmd, args, opts)` — proses async pakai `Bun.spawn`, dengan timeout,
+    keluaran digabung dan dibatasi 1MB
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -4065,7 +4094,6 @@ Expected: FAIL — "Cannot find module './execute'"
 - [ ] **Step 3: Bikin `apps/server/src/build/execute.ts`**
 
 ```typescript
-import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type Docker from 'dockerode'
@@ -4076,6 +4104,10 @@ import type { App } from '../repositories/apps'
 import { buildkitHost, ensureBuildKit, stopBuildKit } from './buildkit'
 import { cloneRepo } from './git'
 import { chooseBuildPlan, dockerBuildArgs, railpackArgs } from './strategy'
+
+/** Build bisa lama, tapi nggak boleh nggantung selamanya. */
+const BUILD_TIMEOUT_MS = 30 * 60 * 1000
+const PULL_TIMEOUT_MS = 10 * 60 * 1000
 
 export function shouldTagLatest(kind: 'dockerfile' | 'railpack' | 'image'): boolean {
   return kind !== 'image'
@@ -4097,13 +4129,74 @@ function log(deps: ExecuteDeps, deploymentId: string, line: string): void {
   appendBuildLog(deps.logDir, deploymentId, line)
 }
 
-function run(cmd: string, args: string[], cwd?: string, env?: Record<string, string>): string {
-  return execFileSync(cmd, args, {
-    cwd,
-    env: { ...process.env, ...env },
-    encoding: 'utf8',
-    stdio: 'pipe',
+/**
+ * Jalanin proses tanpa nge-block event loop. `execFileSync` bikin seluruh panel
+ * freeze selama build, jadi nggak boleh dipakai di jalur ini.
+ *
+ * Keluaran digabung stdout+stderr, dibatasi BUFFER_MAX biar log raksasa nggak
+ * ngabisin RAM, dan dipotong kalau lewat timeout.
+ */
+const BUFFER_MAX = 1024 * 1024
+const TAIL_MAX = 16 * 1024
+
+async function run(
+  cmd: string,
+  args: string[],
+  opts: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {}
+): Promise<string> {
+  const proc = Bun.spawn([cmd, ...args], {
+    cwd: opts.cwd,
+    env: { ...process.env, ...opts.env },
+    stdout: 'pipe',
+    stderr: 'pipe',
   })
+
+  let buang = ''
+  let simpan = ''
+
+  async function baca(stream: ReadableStream<Uint8Array>, label: string) {
+    const decoder = new TextDecoder()
+    for await (const chunk of stream) {
+      const text = decoder.decode(chunk, { stream: true })
+      proses(text)
+      simpan += text
+      if (simpan.length > BUFFER_MAX) {
+        // Yang dibuang tetep ditulis biar user nggak kehilangan error.
+        buang += simpan.slice(0, simpan.length - TAIL_MAX)
+        simpan = simpan.slice(-TAIL_MAX)
+      }
+      void label
+    }
+  }
+
+  function proses(_text: string): void {
+    // Sengaja kosong: log live ngalir ke file lewat streamBuildLog di Task 22c.
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      proc.kill()
+      reject(new Error(`${cmd} kelamaan, dimatiin setelah ${BUILD_TIMEOUT_MS / 60000} menit`))
+    }, opts.timeoutMs ?? BUILD_TIMEOUT_MS)
+  })
+
+  try {
+    await Promise.race([
+      (async () => {
+        await Promise.all([baca(proc.stdout, 'stdout'), baca(proc.stderr, 'stderr')])
+        const code = await proc.exited
+        if (code !== 0) {
+          throw new Error(`${cmd} gagal (exit ${code})\n${buang}${simpan}`)
+        }
+      })(),
+      timeout,
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+
+  return buang + simpan
 }
 
 export function createBuildFn(
@@ -4117,9 +4210,9 @@ export function createBuildFn(
     if (app.source_type === 'image') {
       if (!app.image_ref) throw new Error('App dari image nggak punya image_ref')
       log(deps, deploymentId, `Pull image: ${app.image_ref}`)
-      run('docker', ['pull', app.image_ref])
-      run('docker', ['tag', app.image_ref, tag])
-      run('docker', ['tag', app.image_ref, latest])
+      await run('docker', ['pull', app.image_ref], { timeoutMs: PULL_TIMEOUT_MS })
+      await run('docker', ['tag', app.image_ref, tag])
+      await run('docker', ['tag', app.image_ref, latest])
       return { imageTag: tag }
     }
 
@@ -4128,7 +4221,7 @@ export function createBuildFn(
     const privateKeyPath = join(deps.deployKeyDir, app.slug)
     log(deps, deploymentId, `Clone ${app.repo_url} (${app.branch})`)
 
-    const cloned = cloneRepo({
+    const cloned = await cloneRepo({
       repoUrl: app.repo_url,
       branch: app.branch ?? 'main',
       privateKeyPath,
@@ -4162,18 +4255,16 @@ export function createBuildFn(
           tag,
           buildkitHost: buildkitHost(),
         })
-        const output = run('docker', args)
-        log(deps, deploymentId, output)
+        log(deps, deploymentId, await run('docker', args))
       } else {
-        const output = run('railpack', railpackArgs({ contextDir, tag }))
-        log(deps, deploymentId, output)
+        log(deps, deploymentId, await run('railpack', railpackArgs({ contextDir, tag })))
       }
     } finally {
       await stopBuildKit(deps.docker).catch(() => undefined)
     }
 
     if (shouldTagLatest(plan.kind)) {
-      run('docker', ['tag', tag, latest])
+      await run('docker', ['tag', tag, latest])
     }
 
     log(deps, deploymentId, `Image siap: ${tag}`)
@@ -4191,7 +4282,7 @@ Expected: PASS — 4 tes lolos
 
 ```bash
 git add apps/server/src/build/execute.ts apps/server/src/build/execute.test.ts
-git commit -m "feat(build): build executor with latest tagging"
+GIT_EDITOR=true git commit -m "feat(build): build executor with latest tagging"
 ```
 
 ---
@@ -4288,15 +4379,18 @@ Expected: FAIL — "Cannot find module './pipeline'"
 ```typescript
 import type Docker from 'dockerode'
 import type { Database } from '../db/client'
-import { containerName } from '../docker/client'
 import {
   inspectContainer,
   removeContainer,
   runContainer,
   stopContainer,
 } from '../docker/containers'
-import { getLogs } from '../docker/logs'
-import { ensureNetwork, pruneImages, pruneOldDeployments } from '../docker/maintenance'
+import {
+  ensureNetwork,
+  pruneBuildLogs,
+  pruneImages,
+  pruneOldDeployments,
+} from '../docker/maintenance'
 import { nowIso } from '../lib/id'
 import type { App } from '../repositories/apps'
 import { getApp, setAppStatus } from '../repositories/apps'
@@ -4306,12 +4400,11 @@ import {
   setDeploymentStatus,
 } from '../repositories/deployments'
 import { resolveEnvVars } from '../repositories/env-vars'
-import { imageTag } from '../docker/client'
 
 export type DeployDeps = {
   db: Database
   docker: Docker
-  key: Buffer
+  cryptoKey: Buffer
   logDir: string
   workDir: string
   buildFn: (app: App, deploymentId: string) => Promise<{ imageTag: string }>
@@ -4352,7 +4445,7 @@ export async function deployApp(
   deps: DeployDeps,
   appId: string
 ): Promise<DeployResult> {
-  const { db, docker, key, logDir } = deps
+  const { db, docker, cryptoKey, logDir } = deps
 
   const app = getApp(db, appId)
   if (!app) return { deploymentId: '', ok: false, error: 'App nggak ketemu' }
@@ -4367,7 +4460,7 @@ export async function deployApp(
     const built = await deps.buildFn(app, deployment.id)
     setDeploymentStatus(db, deployment.id, 'deploying', { imageTag: built.imageTag })
 
-    const env = resolveEnvVars(db, appId, key)
+    const env = resolveEnvVars(db, appId, cryptoKey)
     const wasRunning = (await inspectContainer(docker, app.slug)) !== null
 
     if (wasRunning) {
@@ -4393,6 +4486,10 @@ export async function deployApp(
     await pruneImages(docker).catch(() => undefined)
     pruneOldDeployments(db, appId, 50)
 
+    // Pembersihan disk nempel di jalur deploy, bukan cron — sesuai prinsip
+    // nggak ada proses yang nyala terus.
+    pruneBuildLogs(logDir, 30)
+
     return { deploymentId: deployment.id, ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -4401,9 +4498,10 @@ export async function deployApp(
     return { deploymentId: deployment.id, ok: false, error: message }
   }
 }
-
-export { containerName, getLogs, imageTag }
 ```
+
+Catatan: nggak ada lagi `export { containerName, getLogs, imageTag }` di bawah —
+re-export itu nggak dipakai siapa pun dan nyamarin arah impornya.
 
 - [ ] **Step 4: Jalanin tes, pastiin lolos**
 
@@ -4413,8 +4511,8 @@ Expected: PASS — 5 tes lolos
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/server/src/build/pipeline.ts apps/server/src/build/pipeline.test.ts
-git commit -m "feat(build): deploy pipeline that never kills a running app"
+git add apps/server/src/build
+GIT_EDITOR=true git commit -m "feat(build): deploy pipeline that never kills a running app"
 ```
 
 ---
@@ -4697,6 +4795,7 @@ import {
 } from '../repositories/env-vars'
 import { listDeployments } from '../repositories/deployments'
 import { getDocker, pingDocker } from '../docker/client'
+import { decrypt } from '../lib/crypto'
 import { getContainerStats } from '../docker/stats'
 import { getLogs } from '../docker/logs'
 import { inspectContainer, removeContainer, stopContainer, runContainer } from '../docker/containers'
@@ -4728,13 +4827,14 @@ const envSchema = z.object({
 
 export type AppRoutesDeps = {
   db: Database
-  key: Buffer
+  cryptoKey: Buffer
   deployKeyDir: string
   onDeploy: (appId: string) => void
+  onDomainChange: () => void
 }
 
 export function createAppRoutes(deps: AppRoutesDeps): Hono {
-  const { db, key, deployKeyDir } = deps
+  const { db, cryptoKey, deployKeyDir } = deps
   const router = new Hono()
 
   router.get('/projects/:projectId/apps', (c) => {
@@ -4899,7 +4999,10 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
     const envVars = listEnvVars(db, id).map((v) => ({
       key: v.key,
       isSecret: v.is_secret === 1,
-      value: v.is_secret === 1 ? MASK : '<terenkripsi>',
+      // Yang rahasia ditutup total. Yang bukan rahasia didekripsi biar
+      // nilainya keliatan di panel — dia bukan rahasia, jadi nggak ada
+      // alasan nyembunyiin.
+      value: v.is_secret === 1 ? MASK : decrypt(v.value, cryptoKey),
     }))
 
     return c.json({ envVars })
@@ -4915,7 +5018,7 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
       return c.json({ error: 'Key env var harus huruf/angka/underscore' }, 400)
     }
 
-    setEnvVar(db, id, parsed.data.key, parsed.data.value, parsed.data.isSecret ?? false, key)
+    setEnvVar(db, id, parsed.data.key, parsed.data.value, parsed.data.isSecret ?? false, cryptoKey)
     return c.json({ ok: true })
   })
 
@@ -4933,88 +5036,27 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
     const app = getApp(db, id)
     if (!app) return c.json({ error: 'App nggak ketemu' }, 404)
 
-    const keyPath = `${deployKeyDir}/${app.slug}`
+    const keyPath = join(deployKeyDir, app.slug)
     const { publicKey } = generateDeployKey(keyPath)
     return c.json({ publicKey: formatPublicKey(publicKey, app.slug) })
   })
 
   return router
 }
-
-export { ensureNetwork }
 ```
 
-- [ ] **Step 4: Sambungin ke `app.ts`**
+- [ ] **Step 4: Jalanin semua tes**
 
-Ganti `apps/server/src/app.ts` jadi:
-
-```typescript
-import { Hono } from 'hono'
-import { openDatabase } from './db/client'
-import { runMigrations } from './db/migrate'
-import { loadOrCreateKey } from './lib/crypto'
-import { createAuthRoutes } from './routes/auth'
-import { createProjectRoutes } from './routes/projects'
-import { createAppRoutes } from './routes/apps'
-import { requireAuth } from './middleware/auth'
-
-export const HIKARI_VERSION = '0.1.0'
-
-export type AppConfig = {
-  dbPath: string
-  keyPath: string
-  port: number
-  deployKeyDir?: string
-  onDeploy?: (appId: string) => void
-}
-
-export function createApp(config: AppConfig): Hono {
-  const db = openDatabase(config.dbPath)
-  runMigrations(db)
-  const key = loadOrCreateKey(config.keyPath)
-
-  const app = new Hono()
-
-  app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
-  app.route('/api', createAuthRoutes(db, key))
-
-  const auth = requireAuth(db, key)
-  app.use('/api/projects', auth)
-  app.use('/api/projects/*', auth)
-  app.use('/api/apps/*', auth)
-
-  app.route('/api', createProjectRoutes(db))
-  app.route(
-    '/api',
-    createAppRoutes({
-      db,
-      key,
-      deployKeyDir: config.deployKeyDir ?? '/var/lib/hikari/keys',
-      onDeploy: config.onDeploy ?? (() => undefined),
-    })
-  )
-
-  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
-
-  app.onError((err, c) => {
-    console.error('[hikari] error:', err)
-    return c.json({ error: 'Ada yang salah di server' }, 500)
-  })
-
-  return app
-}
-```
-
-- [ ] **Step 5: Jalanin semua tes**
+Jangan nyentuh `app.ts` dulu — nanti di Task 36.
 
 Run: `cd apps/server && bun test`
 Expected: PASS — semua lolos
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add apps/server/src
-git commit -m "feat(apps): CRUD, deploy, control, logs, and env endpoints"
+GIT_EDITOR=true git commit -m "feat(apps): CRUD, deploy, control, logs, and env endpoints"
 ```
 
 ---
@@ -5072,6 +5114,14 @@ describe('validateHostname', () => {
 
   test('tolak wildcard', () => {
     expect(validateHostname('*.contoh.com').ok).toBe(false)
+  })
+
+  test('tolak domain tanpa titik', () => {
+    expect(validateHostname('blog').ok).toBe(false)
+  })
+
+  test('protokol dikasih alasan http, bukan alasan port', () => {
+    expect(validateHostname('https://blog.com').reason).toContain('http')
   })
 })
 
@@ -5170,18 +5220,15 @@ const HOSTNAME_RE = /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$
 
 export function validateHostname(hostname: string): { ok: boolean; reason?: string } {
   if (!hostname) return { ok: false, reason: 'Domain wajib diisi' }
-  if (hostname.includes(':')) return { ok: false, reason: 'Domain nggak boleh pakai port' }
   if (hostname.includes('://')) return { ok: false, reason: 'Domain nggak boleh pakai http://' }
   if (/\s/.test(hostname)) return { ok: false, reason: 'Domain nggak boleh ada spasi' }
+  if (hostname.includes(':')) return { ok: false, reason: 'Domain nggak boleh pakai port' }
   if (hostname.startsWith('*')) return { ok: false, reason: 'Wildcard nggak didukung di sini' }
   if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
     return { ok: false, reason: 'Pakai domain, bukan alamat IP' }
   }
   if (!HOSTNAME_RE.test(hostname)) {
     return { ok: false, reason: 'Format domain nggak valid' }
-  }
-  if (!hostname.includes('.')) {
-    return { ok: false, reason: 'Domain harus punya titik, minimal contoh.com' }
   }
   return { ok: true }
 }
@@ -5277,7 +5324,7 @@ Expected: PASS — 14 tes lolos
 
 ```bash
 git add apps/server/src/caddy apps/server/src/repositories/domains.ts
-git commit -m "feat(caddy): caddyfile generation from domain list"
+GIT_EDITOR=true git commit -m "feat(caddy): caddyfile generation from domain list"
 ```
 
 ---
@@ -5295,7 +5342,9 @@ git commit -m "feat(caddy): caddyfile generation from domain list"
   - `writeCaddyfile(path: string, content: string): void`
   - `reloadCaddy(adminUrl: string, fetchImpl?): Promise<{ ok: boolean; error?: string }>`
   - `syncCaddy(deps: { db, caddyfilePath, panelDomain, panelPort, adminUrl }): Promise<void>`
-  - Endpoint: `POST /api/apps/:id/domains` body `{ hostname }`, `DELETE /api/apps/:id/domains/:domainId`
+  `onDomainChange` **wajib** (nggak ada default). Bentuk final `AppRoutesDeps`
+  jadinya lima field: `db`, `key`, `deployKeyDir`, `onDeploy`, `onDomainChange`.
+  Task 24 nge-update signature jadi lima field ini, tapi isi body-nya sama.
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -5548,56 +5597,18 @@ Tambahin route sebelum `return router`:
   })
 ```
 
-- [ ] **Step 5: Sambungin `onDomainChange` di `app.ts`**
+- [ ] **Step 5: Jalanin semua tes**
 
-Ganti bagian `app.route('/api', createAppRoutes({ ... }))`:
-
-```typescript
-  app.route(
-    '/api',
-    createAppRoutes({
-      db,
-      key,
-      deployKeyDir: config.deployKeyDir ?? '/var/lib/hikari/keys',
-      onDeploy: config.onDeploy ?? (() => undefined),
-      onDomainChange: () => {
-        void syncCaddy({
-          db,
-          caddyfilePath: config.caddyfilePath ?? '/etc/caddy/Caddyfile',
-          panelPort: config.port,
-          panelDomain: config.panelDomain ?? null,
-          adminUrl: 'http://127.0.0.1:2019/load',
-          acmeEmail: config.acmeEmail,
-        }).catch((err) => console.error('[hikari] sync caddy gagal:', err))
-      },
-    })
-  )
-```
-
-Tambahin ke `AppConfig`:
-
-```typescript
-  caddyfilePath?: string
-  panelDomain?: string | null
-  acmeEmail?: string
-```
-
-Tambahin import di atas:
-
-```typescript
-import { syncCaddy } from './caddy/service'
-```
-
-- [ ] **Step 6: Jalanin semua tes**
+Jangan nyentuh `app.ts` dulu — nanti di Task 36.
 
 Run: `cd apps/server && bun test`
 Expected: PASS — semua lolos
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/server/src
-git commit -m "feat(caddy): config sync and domain endpoints"
+GIT_EDITOR=true git commit -m "feat(caddy): config sync and domain endpoints"
 ```
 
 ---
@@ -5615,7 +5626,14 @@ git commit -m "feat(caddy): config sync and domain endpoints"
   - `verifyGithubSignature(payload: string, signature: string, secret: string): boolean`
   - `POST /api/webhooks/github/:appId` → 202 kalau valid, 401 kalau signature salah, 404 kalau app nggak ada
   - `getOrCreateWebhookSecret(db, appId): string`
-  - Endpoint: `GET /api/apps/:id/webhook` → `{ url, secret }`
+  - `GET /api/apps/:id/webhook` → `{ url, secret }`
+
+Catatan: Hono nge-match middleware berdasarkan prefix path, bukan urutan
+registrasi. `/api/webhooks/github/:appId` nggak pernah kena `requireAuth`
+karena middleware-nya dipasang di `/api/projects`, `/api/projects/*`, dan
+`/api/apps/*` — tiga prefix yang nggak nyentuh `/api/webhooks`. Jadi nggak ada
+urutan ajaib yang perlu dijaga; cukup pastiin `app.ts` (Task 36) masang
+`createWebhookRoutes` dan `createWebhookInfoRoute`.
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -5722,7 +5740,7 @@ describe('POST /api/webhooks/github/:appId', () => {
     expect(res.status).toBe(404)
   })
 
-  test('push ke branch lain tetap diterima (difilter di pipeline)', async () => {
+  test('push ke branch lain tetap diterima webhook (difilter di handler)', () => {
     const lain = JSON.stringify({ ref: 'refs/heads/feature' })
     const res = await hook(sign(lain, secret), lain)
     expect(res.status).toBe(202)
@@ -5910,48 +5928,18 @@ export function createWebhookInfoRoute(db: Database): Hono {
 }
 ```
 
-- [ ] **Step 5: Sambungin ke `app.ts`**
+- [ ] **Step 5: Jalanin semua tes**
 
-Tambahin import:
-
-```typescript
-import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
-```
-
-Tambahin ke `AppConfig`:
-
-```typescript
-  onPush?: (appId: string) => void
-```
-
-Penting: webhook **harus** dipasang **sebelum** middleware auth, karena GitHub nggak punya cookie.
-
-```typescript
-  app.route(
-    '/api',
-    createWebhookRoutes({
-      db,
-      onPush: config.onPush ?? (() => undefined),
-    })
-  )
-```
-
-Terus setelah blok `app.use('/api/apps/*', auth)`:
-
-```typescript
-  app.route('/api', createWebhookInfoRoute(db))
-```
-
-- [ ] **Step 6: Jalanin semua tes**
+Jangan nyentuh `app.ts` dulu — nanti di Task 36.
 
 Run: `cd apps/server && bun test`
 Expected: PASS — semua lolos
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/server/src
-git commit -m "feat(webhooks): github push webhook with hmac verification"
+GIT_EDITOR=true git commit -m "feat(webhooks): github push webhook with hmac verification"
 ```
 
 ---
@@ -6110,7 +6098,7 @@ Expected: folder `dist/` muncul dengan `index.html`
 
 ```bash
 git add apps/web
-git commit -m "feat(web): vite + react + tanstack router setup"
+GIT_EDITOR=true git commit -m "feat(web): vite + react + tanstack router setup"
 ```
 
 ---
@@ -6262,7 +6250,7 @@ Expected: build sukses, tidak ada error CSS
 
 ```bash
 git add apps/web
-git commit -m "feat(web): tailwind with light-blue brand tokens"
+GIT_EDITOR=true git commit -m "feat(web): tailwind with light-blue brand tokens"
 ```
 
 ---
@@ -6673,7 +6661,7 @@ Expected: build sukses
 
 ```bash
 git add apps/web
-git commit -m "feat(web): api client and auth pages"
+GIT_EDITOR=true git commit -m "feat(web): api client and auth pages"
 ```
 
 ---
@@ -6900,7 +6888,7 @@ Expected: build sukses
 
 ```bash
 git add apps/web
-git commit -m "feat(web): panel shell with sidebar and auth guard"
+GIT_EDITOR=true git commit -m "feat(web): panel shell with sidebar and auth guard"
 ```
 
 ---
@@ -7241,7 +7229,7 @@ Expected: build sukses
 
 ```bash
 git add apps/web
-git commit -m "feat(web): projects list and create dialog"
+GIT_EDITOR=true git commit -m "feat(web): projects list and create dialog"
 ```
 
 ---
@@ -7621,7 +7609,7 @@ Expected: build sukses
 
 ```bash
 git add apps/web
-git commit -m "feat(web): project detail with app list and create dialog"
+GIT_EDITOR=true git commit -m "feat(web): project detail with app list and create dialog"
 ```
 
 ---
@@ -8058,7 +8046,7 @@ Expected: build sukses
 
 ```bash
 git add apps/web
-git commit -m "feat(web): app detail page with tabs, stats, and logs"
+GIT_EDITOR=true git commit -m "feat(web): app detail page with tabs, stats, and logs"
 ```
 
 ---
@@ -8377,23 +8365,270 @@ Expected: build sukses
 
 ```bash
 git add apps/web
-git commit -m "feat(web): env and domains tabs"
+GIT_EDITOR=true git commit -m "feat(web): env and domains tabs"
 ```
 
 ---
 
-## Task 36: Halaman Settings
+<!-- TASK36-START -->
+## Task 36: Wiring Final `app.ts`
+
+Ini **satu-satunya** tempat `app.ts` ditulis. Task 1–26 udah bikin semua fungsi
+`create*Routes`, tapi belum ada yang dipasang. Task ini yang nyatuin semuanya.
+
+Dikerjain **setelah Task 27–35 selesai**, karena butuh semua route dan
+komponen udah ada.
+
+**File:**
+- Modify (tuntas): `apps/server/src/app.ts`
+- Modify: `apps/server/src/index.ts`
+
+- [ ] **Step 1: Ganti isi `apps/server/src/app.ts`**
+
+```typescript
+import { Hono } from 'hono'
+import { join } from 'node:path'
+import { runDeployQueue } from './build/deploy-queue'
+import { syncCaddy } from './caddy/service'
+import { openDatabase } from './db/client'
+import { runMigrations } from './db/migrate'
+import { loadOrCreateKey } from './lib/crypto'
+import { requireAuth } from './middleware/auth'
+import { createAppRoutes } from './routes/apps'
+import { createAuthRoutes } from './routes/auth'
+import { createProjectRoutes } from './routes/projects'
+import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
+
+/**
+ * Handler rute dikumpulin di satu objek deps, bukan argumen posisional.
+ * Nambah field nggak bikin signature pecah.
+ */
+export type AppConfig = {
+  dbPath: string
+  keyPath: string
+  port: number
+  dataDir?: string
+  staticDir?: string
+  caddyfilePath?: string
+  panelDomain?: string | null
+  acmeEmail?: string
+}
+
+export function createApp(config: AppConfig): Hono {
+  const dataDir = config.dataDir ?? '/var/lib/hikari'
+
+  const db = openDatabase(config.dbPath)
+  runMigrations(db)
+  const cryptoKey = loadOrCreateKey(config.keyPath)
+
+  const deployKeyDir = join(dataDir, 'keys')
+  const logDir = join(dataDir, 'logs')
+  const workDir = join(dataDir, 'work')
+  const knownHostsPath = join(dataDir, 'known_hosts')
+
+  const app = new Hono()
+
+  // --- Health ---------------------------------------------------------
+  app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
+
+  // --- Auth (publik) ---------------------------------------------------
+  app.route('/api', createAuthRoutes(db, cryptoKey))
+
+  // --- Webhook (publik, dijaga HMAC sendiri) ---------------------------
+  app.route('/api', createWebhookRoutes({ db, onPush: queue.enqueue }))
+
+  // --- Semua sisanya butuh login --------------------------------------
+  const auth = requireAuth(db, cryptoKey)
+  app.use('/api/projects', auth)
+  app.use('/api/projects/*', auth)
+  app.use('/api/apps/*', auth)
+
+  app.route('/api', createProjectRoutes(db))
+  app.route('/api', createWebhookInfoRoute(db))
+  app.route(
+    '/api',
+    createAppRoutes({
+      db,
+      cryptoKey,
+      deployKeyDir,
+      onDeploy: queue.enqueue,
+      onDomainChange: () => {
+        void syncCaddy({
+          db,
+          caddyfilePath: config.caddyfilePath ?? '/etc/caddy/Caddyfile',
+          panelPort: config.port,
+          panelDomain: config.panelDomain ?? null,
+          adminUrl: 'http://127.0.0.1:2019/load',
+          acmeEmail: config.acmeEmail,
+        }).catch((err) => console.error('[hikari] sync caddy gagal:', err))
+      },
+    })
+  )
+
+  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
+
+  app.onError((err, c) => {
+    console.error('[hikari] error:', err)
+    return c.json({ error: 'Ada yang salah di server' }, 500)
+  })
+
+  return app
+}
+```
+
+- [ ] **Step 2: Bikin `apps/server/src/build/deploy-queue.ts`**
+
+Antrean cuma boleh satu build jalan. Ini pembungkus tipis di atas
+`createBuildQueue` yang udah dites di Task 20.
+
+```typescript
+import type { App } from '../repositories/apps'
+import { deployApp, type DeployDeps } from './pipeline'
+import { createBuildQueue } from './queue'
+
+export type DeployQueueDeps = {
+  db: DeployDeps['db']
+  docker: DeployDeps['docker']
+  cryptoKey: Buffer
+  logDir: string
+  workDir: string
+  buildFn: (app: App, deploymentId: string) => Promise<{ imageTag: string }>
+}
+
+export function createDeployQueue(deps: DeployQueueDeps) {
+  return createBuildQueue(async (appId: string) => {
+    const hasil = await deployApp(
+      {
+        db: deps.db,
+        docker: deps.docker,
+        cryptoKey: deps.cryptoKey,
+        logDir: deps.logDir,
+        workDir: deps.workDir,
+        buildFn: deps.buildFn,
+      },
+      appId
+    )
+    if (!hasil.ok) {
+      console.error(`[hikari] deploy ${appId} gagal: ${hasil.error}`)
+    }
+  })
+}
+```
+
+- [ ] **Step 3: Ganti isi `apps/server/src/index.ts`**
+
+```typescript
+import { createApp } from './app'
+
+const PORT = Number(process.env.HIKARI_PORT ?? 2508)
+const DATA_DIR = process.env.HIKARI_DATA ?? '/var/lib/hikari'
+
+const app = createApp({
+  dbPath: process.env.HIKARI_DB ?? `${DATA_DIR}/hikari.sqlite`,
+  keyPath: process.env.HIKARI_KEY ?? `${DATA_DIR}/secret.key`,
+  port: PORT,
+  dataDir: DATA_DIR,
+  staticDir: process.env.HIKARI_STATIC ?? `${DATA_DIR}/www`,
+  caddyfilePath: process.env.HIKARI_CADDYFILE ?? '/etc/caddy/Caddyfile',
+  panelDomain: process.env.HIKARI_PANEL_DOMAIN ?? null,
+  acmeEmail: process.env.HIKARI_ACME_EMAIL,
+})
+
+console.log(`[hikari] jalan di http://0.0.0.0:${PORT}`)
+
+export default { port: PORT, fetch: app.fetch }
+```
+
+- [ ] **Step 4: Jalanin semua tes**
+
+Run: `bun run typecheck && bun test`
+Expected: PASS — semua lolos, nggak ada error tipe
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/server/src
+GIT_EDITOR=true git commit -m "feat(server): single authoritative app wiring"
+```
+
+---
+
+## Task 36b: Halaman Settings
 
 **File:**
 - Create: `apps/web/src/routes/_panel.settings.tsx`
 
 **Antarmuka:**
-- Nama panel, logo, domain panel, port panel
-- Tampilin status Docker
-- Tampilin pemakaian disk
-- Tombol "Sync Caddy"
+- Nama panel, domain panel, port panel (semua **read-only**, nilainya dari
+  env systemd — panel nggak nyimpen ini ke database)
+- Tampilin versi + status server
+- Tombol "Sync Caddy" yang **beneran manggil endpoint**
 
-- [ ] **Step 1: Bikin `apps/web/src/routes/_panel.settings.tsx`**
+Catatan: versi lama rencana ini nyuruh nampilin logo, status Docker, dan
+pemakaian disk — nggak ada satu pun yang punya endpoint-nya di Fase 1. Field
+nama/domain/port juga `defaultValue` tanpa handler, jadi kelihatan bisa
+disimpen padahal nggak. Di Fase 1 halaman ini **cuma nampilin**, nggak ngubah.
+
+- [ ] **Step 1: Bikin endpoint settings di `apps/server/src/routes/settings.ts`**
+
+```typescript
+import { Hono } from 'hono'
+import { totalmem, freemem } from 'node:os'
+import type { Database } from '../db/client'
+import { HIKARI_VERSION } from '../lib/version'
+import { pingDocker, getDocker } from '../docker/client'
+
+const MB = 1024 * 1024
+
+export type SettingsDeps = {
+  db: Database
+  dataDir: string
+  onSyncCaddy: () => void
+}
+
+export function createSettingsRoutes(deps: SettingsDeps): Hono {
+  const router = new Hono()
+
+  router.get('/settings', async (c) => {
+    const dockerAvailable = await pingDocker(getDocker())
+    return c.json({
+      version: HIKARI_VERSION,
+      dataDir: deps.dataDir,
+      dockerAvailable,
+      ramUsedMb: Math.round((totalmem() - freemem()) / MB),
+      ramTotalMb: Math.round(totalmem() / MB),
+    })
+  })
+
+  router.post('/settings/sync-caddy', (c) => {
+    deps.onSyncCaddy()
+    return c.json({ ok: true })
+  })
+
+  return router
+}
+```
+
+Terus di `app.ts`, di dalem blok yang butuh login, tambahin:
+
+```typescript
+  app.route(
+    '/api',
+    createSettingsRoutes({
+      db,
+      dataDir,
+      onSyncCaddy: () => {
+        void syncCaddy({...})
+      },
+    })
+  )
+```
+
+Catatan: `onSyncCaddy` dan `onDomainChange` manggil `syncCaddy` yang sama —
+bikin satu fungsi `syncCaddySekarang()` di `app.ts` biar nggak duplikat
+argumennya.
+
+- [ ] **Step 2: Ganti isi `apps/web/src/routes/_panel.settings.tsx`**
 
 ```tsx
 import { createFileRoute } from '@tanstack/react-router'
@@ -8406,23 +8641,32 @@ import { Card, CardBody, CardHeader } from '../components/ui/card'
 
 export const Route = createFileRoute('/_panel/settings')({ component: SettingsPage })
 
-type Health = { status: string; version: string }
+type Settings = {
+  version: string
+  dataDir: string
+  dockerAvailable: boolean
+  ramUsedMb: number
+  ramTotalMb: number
+}
 
 function SettingsPage() {
   const { username } = useAuth()
-  const [health, setHealth] = useState<Health | null>(null)
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [pesan, setPesan] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const res = await api.get<Health>('/health')
-    if (res.ok) setHealth(res.data)
+    const res = await api.get<Settings>('/settings')
+    if (res.ok) setSettings(res.data)
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const inputClass =
-    'mt-1 w-full rounded-card border border-line px-3 py-2 text-sm transition-hikari focus:border-brand'
+  async function syncCaddy() {
+    const res = await api.post('/settings/sync-caddy')
+    setPesan(res.ok ? 'Config Caddy disinkron ulang.' : res.error)
+  }
 
   return (
     <AppShell username={username ?? 'admin'} title="Settings">
@@ -8432,44 +8676,25 @@ function SettingsPage() {
             <h2 className="text-sm font-medium">Panel</h2>
           </CardHeader>
           <CardBody>
-            <div className="space-y-3">
-              <div>
-                <label htmlFor="pname" className="block text-sm font-medium">
-                  Nama panel
-                </label>
-                <input id="pname" defaultValue="Hikari" className={inputClass} />
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-ink-muted">Versi Hikari</dt>
+                <dd className="font-mono text-xs">{settings?.version ?? '—'}</dd>
               </div>
-
-              <div>
-                <label htmlFor="pdom" className="block text-sm font-medium">
-                  Domain panel <span className="text-ink-subtle">(opsional)</span>
-                </label>
-                <input
-                  id="pdom"
-                  placeholder="panel.contoh.com"
-                  className={`${inputClass} font-mono`}
-                />
-                <p className="mt-1 text-xs text-ink-subtle">
-                  Kalau diisi, Caddy bakal nerusin domain ini ke port panel.
-                </p>
+              <div className="flex justify-between">
+                <dt className="text-ink-muted">Folder data</dt>
+                <dd className="font-mono text-xs">{settings?.dataDir ?? '—'}</dd>
               </div>
-
-              <div>
-                <label htmlFor="pport" className="block text-sm font-medium">
-                  Port panel
-                </label>
-                <input
-                  id="pport"
-                  type="number"
-                  defaultValue="2508"
-                  className={`${inputClass} font-mono`}
-                />
-                <p className="mt-1 text-xs text-ink-subtle">
-                  Ganti port-nya di file systemd, terus restart Hikari. Nilai di sini
-                  cuma buat ditampilin.
-                </p>
+              <div className="flex justify-between">
+                <dt className="text-ink-muted">Port panel</dt>
+                <dd className="font-mono text-xs">2508</dd>
               </div>
-            </div>
+            </dl>
+            <p className="mt-3 text-xs text-ink-subtle">
+              Nama, domain, dan port panel diatur lewat file systemd
+              (<span className="font-mono">/etc/systemd/system/hikari.service</span>),
+              bukan dari halaman ini.
+            </p>
           </CardBody>
         </Card>
 
@@ -8480,12 +8705,16 @@ function SettingsPage() {
           <CardBody>
             <dl className="space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <dt className="text-ink-muted">Versi Hikari</dt>
-                <dd className="font-mono text-xs">{health?.version ?? '—'}</dd>
+                <dt className="text-ink-muted">Docker</dt>
+                <dd className="font-mono text-xs">
+                  {settings ? (settings.dockerAvailable ? 'nyambung' : 'nggak nyambung') : '—'}
+                </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink-muted">Status server</dt>
-                <dd className="font-mono text-xs">{health?.status ?? '—'}</dd>
+                <dt className="text-ink-muted">RAM VPS</dt>
+                <dd className="font-mono text-xs">
+                  {settings ? `${settings.ramUsedMb} / ${settings.ramTotalMb} MB` : '—'}
+                </dd>
               </div>
             </dl>
           </CardBody>
@@ -8499,8 +8728,11 @@ function SettingsPage() {
             <p className="text-sm text-ink-muted">
               Kalau domain nggak kebaca sama Caddy, coba sinkron ulang.
             </p>
-            <div className="mt-3">
-              <Button variant="ghost">Sync Caddy</Button>
+            <div className="mt-3 flex items-center gap-3">
+              <Button variant="ghost" onClick={syncCaddy}>
+                Sync Caddy
+              </Button>
+              {pesan && <span className="text-xs text-ink-muted">{pesan}</span>}
             </div>
           </CardBody>
         </Card>
@@ -8510,19 +8742,166 @@ function SettingsPage() {
 }
 ```
 
-- [ ] **Step 2: Verifikasi build**
+- [ ] **Step 3: Verifikasi build**
 
 Run: `cd apps/web && bun run build`
 Expected: build sukses
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add apps/web
-git commit -m "feat(web): settings page"
+GIT_EDITOR=true git commit -m "feat(web): read-only settings page with real endpoints"
 ```
 
 ---
+
+## Task 36c: Hook Interval yang Sadar Tab
+
+Ini yang bikin aturan "nggak ada proses yang nyala terus" beneran berlaku di
+frontend. Semua polling wajib lewat hook ini.
+
+**File:**
+- Create: `apps/web/src/hooks/use-visible-interval.ts`
+- Create: `apps/web/src/hooks/use-visible-interval.test.ts`
+- Modify: `apps/web/src/routes/_panel.apps.$appId.tsx`
+- Modify: `apps/web/src/components/apps/app-logs.tsx`
+
+- [ ] **Step 1: Tulis tes yang gagal**
+
+Bikin `apps/web/src/hooks/use-visible-interval.test.ts`:
+
+```typescript
+import { describe, expect, test } from 'bun:test'
+import { shouldPoll } from './use-visible-interval'
+
+describe('shouldPoll', () => {
+  test('jalan kalau tab kelihatan', () => {
+    expect(shouldPoll({ visible: true, active: true })).toBe(true)
+  })
+
+  test('nggak jalan kalau tab disembunyiin', () => {
+    expect(shouldPoll({ visible: false, active: true })).toBe(false)
+  })
+
+  test('nggak jalan kalau fitur polling dimatiin', () => {
+    expect(shouldPoll({ visible: true, active: false })).toBe(false)
+  })
+})
+```
+
+- [ ] **Step 2: Jalanin tes, pastiin gagal**
+
+Run: `cd apps/web && bun test src/hooks/use-visible-interval.test.ts`
+Expected: FAIL — "Cannot find module './use-visible-interval'"
+
+- [ ] **Step 3: Bikin `apps/web/src/hooks/use-visible-interval.ts`**
+
+```typescript
+import { useEffect, useRef } from 'react'
+
+/** Interval minimum. Lebih cepet dari ini bikin panel polling terus. */
+export const MIN_INTERVAL_MS = 10_000
+
+export function shouldPoll(opts: { visible: boolean; active: boolean }): boolean {
+  return opts.visible && opts.active
+}
+
+/**
+ * Jalanin callback tiap `intervalMs`, TAPI cuma pas tab-nya kelihatan.
+ * Pas tab disembunyiin, interval-nya dimatiin — biar tab yang dibiarin
+ * kebuka semalaman nggak nembak Docker API terus.
+ */
+export function useVisibleInterval(
+  callback: () => void,
+  intervalMs: number,
+  active = true
+): void {
+  const saved = useRef(callback)
+  saved.current = callback
+
+  useEffect(() => {
+    if (!active) return
+
+    const jarak = Math.max(intervalMs, MIN_INTERVAL_MS)
+    let id: ReturnType<typeof setInterval> | undefined
+
+    function mulai() {
+      if (id !== undefined) return
+      id = setInterval(() => saved.current(), jarak)
+    }
+
+    function stop() {
+      if (id === undefined) return
+      clearInterval(id)
+      id = undefined
+    }
+
+    function onVisibility() {
+      if (shouldPoll({ visible: document.visibilityState === 'visible', active })) {
+        saved.current()
+        mulai()
+      } else {
+        stop()
+      }
+    }
+
+    onVisibility()
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      stop()
+    }
+  }, [intervalMs, active])
+}
+```
+
+- [ ] **Step 4: Sambungin ke halaman app**
+
+Di `apps/web/src/routes/_panel.apps.$appId.tsx`, ganti effect polling jadi:
+
+```tsx
+import { useVisibleInterval } from '../hooks/use-visible-interval'
+
+// ...
+
+  // Cuma polling pas tab Overview kebuka DAN tab browser-nya kelihatan.
+  useVisibleInterval(() => void load(), 15_000, tab === 'overview')
+```
+
+Hapus blok `useEffect` yang lama (`setInterval(load, 5000)`).
+
+Di `apps/web/src/components/apps/app-logs.tsx`, ganti:
+
+```tsx
+  useEffect(() => {
+    if (!auto) return
+    const id = setInterval(() => void load(), 3000)
+    return () => clearInterval(id)
+  }, [auto, load])
+```
+
+jadi:
+
+```tsx
+  useVisibleInterval(() => void load(), 10_000, auto)
+```
+
+Dan tambahin importnya. Label checkbox-nya ganti jadi `"Ikutin otomatis (10 detik)"`.
+
+- [ ] **Step 5: Verifikasi build**
+
+Run: `bun run typecheck && cd apps/web && bun run build`
+Expected: build sukses
+
+- [ ] **Step 6: Commit**
+
+```bash
+GIT_EDITOR=true git commit -m "feat(web): visibility-aware polling instead of always-on intervals"
+```
+
+---
+<!-- TASK36-END -->
 
 # BAGIAN 5 — PENUTUP
 
@@ -8547,7 +8926,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createApp } from './app'
+import { mountStatic } from './static'
+import { Hono } from 'hono'
 
 let dir: string
 let staticDir: string
@@ -8564,57 +8944,82 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-function app() {
-  return createApp({
-    dbPath: ':memory:',
-    keyPath: join(dir, 'secret.key'),
-    port: 2508,
-    staticDir,
-  })
+/** App minimal: mountStatic didaftarin SEBELUM notFound. */
+function staticApp() {
+  const app = new Hono()
+  app.get('/api/health', (c) => c.json({ status: 'ok' }))
+  mountStatic(app, staticDir)
+  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
+  return app
 }
 
 describe('serve frontend', () => {
   test('route root balikin index.html', async () => {
-    const res = await app().request('/')
+    const res = await staticApp().request('/')
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('Hikari')
   })
 
   test('route SPA yang nggak ada tetep balikin index.html', async () => {
-    const res = await app().request('/projects/abc')
+    const res = await staticApp().request('/projects/abc')
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('Hikari')
   })
 
   test('file statis bisa diambil', async () => {
-    const res = await app().request('/app.js')
+    const res = await staticApp().request('/app.js')
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('console.log')
   })
 
   test('API yang nggak ada tetep 404 JSON, bukan index.html', async () => {
-    const res = await app().request('/api/nggak-ada')
+    const res = await staticApp().request('/api/nggak-ada')
     expect(res.status).toBe(404)
     expect(res.headers.get('content-type')).toContain('application/json')
   })
 
   test('health tetep jalan', async () => {
-    const res = await app().request('/api/health')
+    const res = await staticApp().request('/api/health')
     expect(res.status).toBe(200)
+  })
+
+  test('path traversal ditolak', async () => {
+    const res = await staticApp().request('/../secret.txt')
+    expect(res.status).toBe(200)
+    // Harus fallback ke index.html, bukan bocorin file di luar staticDir.
+    expect(await res.text()).toContain('Hikari')
+  })
+
+  test('aset ber-hash di-cache lama, index.html nggak', async () => {
+    const a = staticApp()
+    const js = await a.request('/app.js')
+    expect(js.headers.get('cache-control')).toBe('no-cache')
+
+    writeFileSync(join(staticDir, 'app-9f3a2b1c.js'), 'console.log(1)')
+    const hashed = await a.request('/app-9f3a2b1c.js')
+    expect(hashed.headers.get('cache-control')).toContain('immutable')
   })
 })
 ```
 
+Catatan: tes ini nge-mount `mountStatic` sendiri, **nggak** lewat `createApp`.
+Alasannya: urutan registrasi middleware harus dites apa adanya, bukan
+ketelen sama wiring `app.ts` yang gede.
+
 - [ ] **Step 2: Jalanin tes, pastiin gagal**
 
 Run: `cd apps/server && bun test src/static.test.ts`
-Expected: FAIL — `staticDir` belum dikenal, route balikin 404 JSON
+Expected: FAIL — "Cannot find module './static'"
 
 - [ ] **Step 3: Bikin `apps/server/src/static.ts`**
 
+Baca file pakai `Bun.file()`, **bukan** `readFileSync`. Kalau pakai file sync,
+tiap request nurunin seluruh proses Hono — satu file 5MB bikin panel freeze
+beberapa ratus milidetik.
+
 ```typescript
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { extname, join, normalize } from 'node:path'
+import { existsSync, statSync } from 'node:fs'
+import { extname, join, normalize, sep } from 'node:path'
 import type { Hono } from 'hono'
 
 const MIME: Record<string, string> = {
@@ -8629,35 +9034,55 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 }
 
+/** Vite nge-hash nama file aset, jadi aman di-cache lama. */
+function cacheHeader(filePath: string): string {
+  return /\.[0-9a-f]{8,}\./.test(filePath)
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache'
+}
+
+function serve(filePath: string, contentType: string, cache: string): Response {
+  return new Response(Bun.file(filePath), {
+    headers: { 'Content-Type': contentType, 'Cache-Control': cache },
+  })
+}
+
+/**
+ * Dipanggil SEBELUM `app.notFound(...)`. Kalau didaftarin setelah notFound,
+ * route SPA bakal ketelen sama notFound dan browser dapet JSON 404, bukan
+ * index.html.
+ */
 export function mountStatic(app: Hono, staticDir: string): void {
   const indexPath = join(staticDir, 'index.html')
 
   app.get('*', (c) => {
     const pathname = c.req.path
 
-    // /api/* yang nyampe sini berarti emang nggak ada route-nya
+    // /api/* yang nyampe sini berarti emang nggak ada route-nya.
     if (pathname.startsWith('/api/')) {
       return c.json({ error: 'Nggak ketemu' }, 404)
     }
 
-    const relative = normalize(pathname).replace(/^(\.\.[/\\])+/, '')
-    const filePath = join(staticDir, relative)
+    // Cegah path traversal: normalisasi, buang awalan ../, terus pastiin
+    // hasilnya masih di dalem staticDir.
+    const bersih = normalize(pathname).replace(/^(\.\.[/\\])+/, '').replace(/^[/\\]+/, '')
+    const filePath = join(staticDir, bersih)
 
     if (
-      filePath.startsWith(staticDir) &&
+      (filePath === staticDir || filePath.startsWith(staticDir + sep)) &&
       existsSync(filePath) &&
       statSync(filePath).isFile()
     ) {
       const ext = extname(filePath)
-      return new Response(readFileSync(filePath), {
-        headers: { 'Content-Type': MIME[ext] ?? 'application/octet-stream' },
-      })
+      return serve(
+        filePath,
+        MIME[ext] ?? 'application/octet-stream',
+        cacheHeader(filePath)
+      )
     }
 
     if (existsSync(indexPath)) {
-      return new Response(readFileSync(indexPath), {
-        headers: { 'Content-Type': MIME['.html'] },
-      })
+      return serve(indexPath, MIME['.html'], 'no-cache')
     }
 
     return c.json({ error: 'Frontend belum di-build' }, 404)
@@ -8679,15 +9104,27 @@ Tambahin import:
 import { mountStatic } from './static'
 ```
 
-Ganti `app.notFound(...)` jadi:
+**Urutannya penting.** `mountStatic` harus dipanggil **sebelum**
+`app.notFound(...)`:
 
 ```typescript
-  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
-
   if (config.staticDir) {
     mountStatic(app, config.staticDir)
   }
+
+  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
 ```
+
+Dokumentasi Hono juga nyaranin `serveStatic` dari `hono/bun` kalau mau lebih
+ringkas — `mountStatic` di atas ditulis tangan biar aturan "`/api/*` tetep 404
+JSON" dan SPA fallback-nya eksplisit dan bisa dites.
+
+- [ ] **Step 5: Tambah tes cache header**
+
+Udah termasuk di blok tes di atas. Jalanin semuanya:
+
+Run: `cd apps/server && bun test src/static.test.ts`
+Expected: PASS — 7 tes lolos
 
 - [ ] **Step 5: Jalanin semua tes**
 
@@ -8698,7 +9135,7 @@ Expected: PASS — semua lolos
 
 ```bash
 git add apps/server/src
-git commit -m "feat(server): serve built frontend with SPA fallback"
+GIT_EDITOR=true git commit -m "feat(server): async static serving with SPA fallback"
 ```
 
 ---
@@ -8710,7 +9147,7 @@ git commit -m "feat(server): serve built frontend with SPA fallback"
 - Modify: `apps/server/src/docker/maintenance.test.ts`
 
 **Antarmuka:**
-- `pruneBuildLogs(logDir, maxAgeDays, maxPerApp): number` — hapus file log yang tua
+- `pruneBuildLogs(logDir, maxAgeDays): number` — hapus file log yang tua
 - Dipanggil **di jalur deploy**, bukan cron (biar nggak ada proses permanen)
 
 - [ ] **Step 1: Tambahin tes yang gagal**
@@ -8762,7 +9199,8 @@ Expected: FAIL — `pruneBuildLogs` belum ada
 
 - [ ] **Step 3: Tambahin implementasi**
 
-Tambahkan di `apps/server/src/docker/maintenance.ts`:
+Tambahkan di `apps/server/src/docker/maintenance.ts`. Perhatiin impor `node:fs`
+udah dipakai `pruneOldDeployments` dari Task 16 — gabungin, jangan duplikat:
 
 ```typescript
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs'
@@ -8797,11 +9235,19 @@ export function pruneBuildLogs(logDir: string, maxAgeDays: number): number {
 Run: `cd apps/server && bun test src/docker/maintenance.test.ts`
 Expected: PASS — 8 tes lolos
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Sambungin ke pipeline deploy**
+
+Udah disambungin di Task 23 (`pruneBuildLogs(logDir, 30)` tepat setelah
+`pruneOldDeployments`). Langkah ini cuma buat verifikasi bahwa panggilannya ada:
+
+Run: `grep -n "pruneBuildLogs" apps/server/src/build/pipeline.ts`
+Expected: satu baris ketemu, dipanggil di dalem blok `try` jalur sukses
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/server/src/docker
-git commit -m "feat(docker): prune stale build logs"
+GIT_EDITOR=true git commit -m "feat(docker): prune stale build logs on deploy path"
 ```
 
 ---
@@ -8817,7 +9263,7 @@ git commit -m "feat(docker): prune stale build logs"
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="USERNAME/hikari"
+REPO="ridhoarh/Hikari-2nd-Panel"
 VERSION="${HIKARI_VERSION:-latest}"
 PORT="${HIKARI_PORT:-2508}"
 INSTALL_DIR="/opt/hikari"
@@ -8866,6 +9312,11 @@ id -u "${SERVICE_USER}" >/dev/null 2>&1 || \
 log "Siapin folder..."
 mkdir -p "${INSTALL_DIR}" "${DATA_DIR}" "${DATA_DIR}/keys" "${DATA_DIR}/logs" "${DATA_DIR}/work"
 
+# Tarball harus udah ada node_modules-nya di dalem, karena ExecStart ngejalanin
+# TypeScript source langsung dan `bun install` nggak dijalani pas install.
+# Yang bikin tarball: `.github/workflows/release.yml` (bun install --production,
+# build web, tar semuanya). Kalau rilis-nya belum ada, curl bakal 404 dan kita
+# kasih pesan yang jelas, bukan gagal di tengah jalan.
 if [ "${VERSION}" = "latest" ]; then
   TARBALL="https://github.com/${REPO}/releases/latest/download/hikari.tar.gz"
 else
@@ -8873,13 +9324,30 @@ else
 fi
 
 log "Download Hikari..."
-curl -fsSL "${TARBALL}" | tar -xz -C "${INSTALL_DIR}"
+if ! curl -fsSL "${TARBALL}" | tar -xz -C "${INSTALL_DIR}"; then
+  fail "Gagal download ${TARBALL}. Pastiin rilis-nya udah ada di GitHub Releases."
+fi
+
+# Frontend hasil build harus ada di DATA_DIR/www biar HIKARI_STATIC nemu.
+mkdir -p "${DATA_DIR}/www"
+if [ -d "${INSTALL_DIR}/apps/web/dist" ]; then
+  cp -r "${INSTALL_DIR}/apps/web/dist/." "${DATA_DIR}/www/"
+fi
 
 command -v bun >/dev/null 2>&1 || {
   log "Install Bun..."
   curl -fsSL https://bun.sh/install | bash
   ln -sf /root/.bun/bin/bun /usr/local/bin/bun
 }
+
+# Pin host key SSH sekali. Tanpa ini, git clone nggak bisa verifikasi identitas
+# server git, jadi deploy key bisa dicuri lewat MITM.
+if command -v ssh-keyscan >/dev/null 2>&1; then
+  log "Pin host key SSH..."
+  ssh-keyscan -t ed25519,rsa github.com gitlab.com codeberg.org \
+    > "${DATA_DIR}/known_hosts" 2>/dev/null || true
+  chmod 644 "${DATA_DIR}/known_hosts"
+fi
 
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}" "${DATA_DIR}"
 
@@ -8897,12 +9365,17 @@ WorkingDirectory=${INSTALL_DIR}
 ExecStart=/usr/local/bin/bun run ${INSTALL_DIR}/apps/server/src/index.ts
 Restart=always
 RestartSec=5
+# Bun nge-spawn subprocess (git, docker, railpack). KillMode=mixed biar
+# proses anak-nya ikut mati pas service-nya distop.
+KillMode=mixed
+TimeoutStopSec=30
 Environment=HIKARI_PORT=${PORT}
+Environment=HIKARI_DATA=${DATA_DIR}
 Environment=HIKARI_DB=${DATA_DIR}/hikari.sqlite
 Environment=HIKARI_KEY=${DATA_DIR}/secret.key
-Environment=HIKARI_KEY_DIR=${DATA_DIR}/keys
-Environment=HIKARI_LOG_DIR=${DATA_DIR}/logs
-Environment=HIKARI_WORK_DIR=${DATA_DIR}/work
+Environment=HIKARI_STATIC=${DATA_DIR}/www
+Environment=HIKARI_CADDYFILE=/etc/caddy/Caddyfile
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 SupplementaryGroups=docker
 
 [Install]
@@ -8927,11 +9400,39 @@ Expected: nggak ada output
 Run: `bash -n install.sh`
 Expected: nggak ada output (sintaks valid)
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Bikin `.github/workflows/release.yml`**
+
+Tanpa ini, `install.sh` nggak punya apa-apa buat di-download.
+
+```yaml
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run build
+      - run: bun install --production
+      - run: tar -czf hikari.tar.gz apps packages bunfig.toml package.json node_modules
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: hikari.tar.gz
+```
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add install.sh
-git commit -m "feat: one-command install script for ubuntu/debian"
+git add install.sh .github/workflows/release.yml
+GIT_EDITOR=true git commit -m "feat: install script with pinned ssh hosts and release workflow"
 ```
 
 ---
@@ -8956,10 +9457,10 @@ sehari-hari.
 
 ```bash
 # Cepat
-curl -fsSL https://raw.githubusercontent.com/USERNAME/hikari/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh | sudo bash
 
 # Aman: baca dulu, baru jalanin
-curl -fsSL https://raw.githubusercontent.com/USERNAME/hikari/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh -o install.sh
 less install.sh && sudo bash install.sh
 ```
 
@@ -8998,6 +9499,7 @@ Jalanin `install.sh` lagi. Nggak ada tombol update di panel, sengaja.
 bun install
 bun run dev     # server di 2508, web di 5173
 bun test
+bun run typecheck
 bun run build
 ```
 
@@ -9016,6 +9518,17 @@ apps/web      Vite + React + TanStack Router
 plan/         Rancangan dan rencana implementasi
 ```
 
+Nggak ada `packages/shared`. Tipe yang dipakai bareng ditulis di
+`apps/web/src/lib/types.ts` — cuma segelintir, nggak sepadan sama satu paket
+workspace sendiri.
+
+## Rilis
+
+Push tag `v*` (misal `git tag v0.1.0 && git push origin v0.1.0`). Workflow
+di `.github/workflows/release.yml` bakal build frontend, bungkus semuanya
+sama `node_modules`, terus nempelin `hikari.tar.gz` ke GitHub Releases.
+`install.sh` ngambil dari situ.
+
 ## Catatan
 
 - Kalau pakai Dokploy di server yang sama, Hikari nggak bisa jalan bareng di
@@ -9024,13 +9537,18 @@ plan/         Rancangan dan rencana implementasi
   sebaiknya deploy lewat tab **Docker Image**, build-nya di tempat lain.
 - Hapus project **nggak** hapus volume Docker. Data kamu aman, tapi harus
   dibersihin manual kalau emang mau dihapus.
+- `ssh-keyscan` dijalani sekali pas install buat pin host key GitHub/GitLab.
+  Kalau VPS-nya belum ada network pas install, clone bakal gagal jelas —
+  itu sengaja, lebih baik gagal jelas daripada jalan tanpa verifikasi.
+- Build dibatalin otomatis setelah 30 menit, pull image setelah 10 menit.
+  Nggak ada build yang bisa nggantung dan nahan panel.
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add README.md
-git commit -m "docs: readme with install and usage"
+GIT_EDITOR=true git commit -m "docs: readme with install and usage"
 ```
 
 ---
@@ -9047,7 +9565,8 @@ git commit -m "docs: readme with install and usage"
 | 6 | Kerangka Hono + health | 1 |
 | 7 | Session & cookie | 1 |
 | 8 | Setup awal & login | 1 |
-| 9 | Middleware auth + rate limit | 1 |
+| 8b | Wiring `app.ts` awal + requireAuth | 1 |
+| 9 | Rate limit login | 1 |
 | 10 | Repo project | 1 |
 | 11 | Endpoint project | 1 |
 | 12 | Client Docker | 2 |
@@ -9059,9 +9578,9 @@ git commit -m "docs: readme with install and usage"
 | 18 | Repo env var & deployment | 2 |
 | 19 | BuildKit | 3 |
 | 20 | Antrean build | 3 |
-| 21 | Git clone | 3 |
+| 21 | Git clone + pin host key | 3 |
 | 22 | Strategi build | 3 |
-| 22b | Eksekusi build + tag latest | 3 |
+| 22b | Eksekusi build async + tag latest | 3 |
 | 23 | Pipeline deploy | 3 |
 | 24 | Endpoint app | 3 |
 | 25 | Caddy config | 3 |
@@ -9075,11 +9594,18 @@ git commit -m "docs: readme with install and usage"
 | 33 | Halaman project | 4 |
 | 34 | Halaman app | 4 |
 | 35 | Tab env & domains | 4 |
-| 36 | Halaman settings | 4 |
-| 37 | Serve frontend | 5 |
-| 38 | Pembersihan log | 5 |
-| 39 | Install script | 5 |
+| 36 | **Wiring final `app.ts`** | 4 |
+| 36b | Halaman settings | 4 |
+| 36c | Hook interval sadar-tab | 4 |
+| 37 | Serve frontend (async) | 5 |
+| 38 | Pembersihan log build | 5 |
+| 39 | Install script + release workflow | 5 |
 | 40 | README | 5 |
+
+**Urutan pengerjaan:** nomor task di tabel ini adalah urutan asli. Task 36
+(wiring `app.ts`) sengaja ditulis belakangan di dokumen supaya nggak ada
+versi `app.ts` yang saling bertentangan selama Bagian 1–4 dikerjain.
+Sebelum itu, `app.ts` cuma berisi health check dan auth (Task 8b).
 
 **Selesai Task 40 = Fase 1 kelar.** Terus deploy satu app asli, pakai beberapa
 hari, baru masuk Fase 2.
