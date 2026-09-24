@@ -1,0 +1,28 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+      - run: bun run build
+      - run: bun test
+
+      # Tarball harus self-contained: install.sh ngejalanin TypeScript source
+      # langsung, jadi node_modules ikut dibungkus.
+      - run: bun install --production
+      - run: tar -czf hikari.tar.gz apps package.json bunfig.toml tsconfig.json node_modules install.sh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: hikari.tar.gz

@@ -4,8 +4,8 @@
   "workspaces": ["apps/*"],
   "scripts": {
     "dev": "bun run --filter '*' dev",
-    "build": "bun run --filter web build",
-    "test": "bun test",
+    "build": "bun run --filter @hikari/web build",
+    "test": "bun run --filter '*' test",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
