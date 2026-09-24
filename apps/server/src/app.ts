@@ -16,6 +16,8 @@ import { createProjectRoutes } from './routes/projects'
 import { createSettingsRoutes } from './routes/settings'
 import { createStorageRoutes } from './routes/storage'
 import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
+import { createGitPushRoutes, setupRepoForApp } from './git-push/routes'
+import { listApps } from './repositories/apps'
 import { mountStatic } from './static'
 
 /**
@@ -33,6 +35,9 @@ export type AppConfig = {
   acmeEmail?: string
   /** Dipakai buat nampilin alamat yang bener di connection string publik. */
   vpsIp?: string
+  /** Host & port yang dipakai buat nampilin URL git push ke user. */
+  gitHost?: string
+  gitPort?: number
 }
 
 export function createApp(config: AppConfig): Hono {
@@ -103,6 +108,10 @@ export function createApp(config: AppConfig): Hono {
   app.use('/api/buckets/*', auth)
   app.use('/api/backups/*', auth)
   app.use('/api/storage/*', auth)
+  app.use('/api/git/*', auth)
+  // CATATAN: /api/git-push/* SENGAJA nggak lewat requireAuth. Yang manggil
+  // itu hook post-receive dari shell, dan dia nggak punya cookie. Dijaga
+  // pakai push-secret per app.
 
   app.route('/api', createProjectRoutes(db))
   app.route('/api', createWebhookInfoRoute(db))
@@ -118,6 +127,17 @@ export function createApp(config: AppConfig): Hono {
       deployKeyDir,
       onDeploy: (appId) => void queue.enqueue(appId),
       onDomainChange: syncCaddySekarang,
+      onAppCreated: (app) => {
+        void setupRepoForApp({
+          db,
+          dataDir,
+          apiUrl: gitApiUrl,
+          appId: app.id,
+          appSlug: app.slug,
+        }).catch((err) =>
+          console.error(`[hikari] gagal nyiapin repo buat ${app.slug}:`, err)
+        )
+      },
     })
   )
   app.route(
@@ -135,6 +155,34 @@ export function createApp(config: AppConfig): Hono {
     createStorageRoutes({ db, cryptoKey, dataDir, vpsIp: config.vpsIp })
   )
 
+  const gitApiUrl = `http://127.0.0.1:${config.port}`
+  app.route(
+    '/api',
+    createGitPushRoutes({
+      db,
+      dataDir,
+      apiUrl: gitApiUrl,
+      gitHost: config.gitHost ?? 'localhost',
+      gitPort: config.gitPort ?? 22,
+      onPush: (appId) => void queue.enqueue(appId),
+    })
+  )
+
+  // Bare repo buat tiap app dibikin pas nyala, karena sshd nunjuk ke folder
+  // ini dan hook-nya harus ada sebelum ada yang push.
+  for (const app of listApps(db)) {
+    void setupRepoForApp({
+      db,
+      dataDir,
+      apiUrl: gitApiUrl,
+      appId: app.id,
+      appSlug: app.slug,
+    }).catch((err) =>
+      console.error(`[hikari] gagal nyiapin repo buat ${app.slug}:`, err)
+    )
+  }
+
+  app.notFound((c) => c.json({ error: 'Nggak ketemu' }, 404))
   // --- Frontend statis -------------------------------------------------
   // Harus SEBELUM notFound. Kalau setelahnya, route SPA bakal ketelen
   // notFound dan browser dapet JSON 404, bukan index.html.

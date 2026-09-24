@@ -65,6 +65,8 @@ export type AppRoutesDeps = {
   deployKeyDir: string
   onDeploy: (appId: string) => void
   onDomainChange: () => void
+  /** Dipanggil pas app baru dibikin, biar bare repo git-nya langsung siap. */
+  onAppCreated?: (app: { id: string; slug: string }) => void
 }
 
 export function createAppRoutes(deps: AppRoutesDeps): Hono {
@@ -98,6 +100,7 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
     }
 
     const app = createAppRecord(db, { ...parsed.data, projectId })
+    deps.onAppCreated?.({ id: app.id, slug: app.slug })
     return c.json({ app }, 201)
   })
 

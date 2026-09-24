@@ -31,11 +31,50 @@ sopan.
 - Log container
 - Statistik CPU/RAM (diambil saat dibuka, nggak ada riwayat)
 - Batas RAM/CPU per app — **wajib**, biar satu app nggak matiin seluruh VPS
+- **Database terkelola**: PostgreSQL, MySQL, Redis
+- **Object storage** MinIO (S3-compatible)
+- Backup manual database, bisa di-download
+
+## Database
+
+Bikin PostgreSQL / MySQL / Redis dari panel, password 32 karakter dibikin
+otomatis, volume otomatis. Ada tiga mode akses:
+
+| Mode | Port di VPS | Cara akses |
+|---|---|---|
+| Internal | `127.0.0.1` | cuma app di VPS yang sama |
+| Tunnel | `127.0.0.1` | `ssh -L`, perintahnya ditampilin di panel |
+| Public (IP) | `0.0.0.0` | dari mana aja, **tanpa TLS** |
+| Public (domain) | `127.0.0.1` | lewat Caddy TCP proxy, pakai TLS |
+
+**Port database ada di range 20001–29999.** Caddy dengerin port itu kalau
+kamu pakai mode domain. Kalau pakai firewall, buka port-nya sesuai mode yang
+dipakai.
+
+Catatan penting soal mode public: pakai domain **bukan** berarti aman. Port
+`IP:port` tetap kebuka, dan bot bakal nyoba masuk lewat situ. Satu port cuma
+bisa ngelayanin satu database — PostgreSQL nggak bawa nama host di protokol
+TCP-nya.
+
+**Hapus database nggak hapus volume.** Data kamu aman, tapi harus dibersihin
+manual: `docker volume rm <nama-volume>`.
+
+## Storage
+
+MinIO jalan sebagai container dengan volume awet. Bikin bucket dari panel,
+kredensialnya (access key + secret key) cuma muncul sekali.
+
+Image MinIO bisa diganti kalau pull-nya gagal:
+
+```bash
+# di /etc/systemd/system/hikari.service, tambahin:
+Environment=HIKARI_MINIO_IMAGE=minio/minio:latest
+```
 
 ## Yang Belum Ada
 
-Database, storage, git push deploy, backup otomatis. Lihat
-`plan/2026-09-24-hikari-design.md` bagian Fase 2 dan 3.
+Git push deploy, terminal web, backup otomatis terjadwal, Cloudflare
+auto-DNS, GitHub App. Lihat `plan/2026-09-24-hikari-design.md` bagian Fase 3.
 
 ## Yang Sengaja Nggak Ada
 
@@ -54,6 +93,17 @@ bun run dev        # server di 2508, web di 5173
 bun test
 bun run typecheck
 bun run build
+```
+
+## Verifikasi
+
+Ada skrip yang nyalain server terus nguji deploy sungguhan — bukan cuma unit
+test. Butuh Docker jalan:
+
+```bash
+bun run build
+bash verify-e2e.sh     # app: build, memory limit, port isolation, SPA
+bash verify-fase2.sh   # database: postgres sungguhan, backup, minio
 ```
 
 ## Butuh

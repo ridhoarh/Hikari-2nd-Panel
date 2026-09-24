@@ -13,6 +13,8 @@ const app = createApp({
   panelDomain: process.env.HIKARI_PANEL_DOMAIN ?? null,
   acmeEmail: process.env.HIKARI_ACME_EMAIL,
   vpsIp: process.env.HIKARI_VPS_IP,
+  gitHost: process.env.HIKARI_GIT_HOST,
+  gitPort: process.env.HIKARI_GIT_PORT ? Number(process.env.HIKARI_GIT_PORT) : undefined,
 })
 
 console.log(`[hikari] jalan di http://0.0.0.0:${PORT}`)
