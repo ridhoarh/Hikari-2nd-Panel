@@ -39,7 +39,7 @@ describe('POST /api/setup', () => {
   })
 
   test('nolak password yang kekecilan', async () => {
-    const res = await setup(app(), 'admin', 'pendek')
+    const res = await setup(app(), 'admin', 'abc')
     expect(res.status).toBe(400)
   })
 

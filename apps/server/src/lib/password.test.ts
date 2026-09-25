@@ -26,13 +26,17 @@ describe('password', () => {
 })
 
 describe('checkPasswordStrength', () => {
-  test('nolak password di bawah 12 karakter', () => {
-    const r = checkPasswordStrength('pendek')
+  test('nolak password di bawah 6 karakter', () => {
+    const r = checkPasswordStrength('abc')
     expect(r.ok).toBe(false)
-    expect(r.reason).toContain('12')
+    expect(r.reason).toContain('6')
   })
 
-  test('terima password 12 karakter', () => {
-    expect(checkPasswordStrength('duabelaschar').ok).toBe(true)
+  test('terima password 6 karakter', () => {
+    expect(checkPasswordStrength('hunter').ok).toBe(true)
+  })
+
+  test('terima password panjang walau tanpa angka atau simbol', () => {
+    expect(checkPasswordStrength('rahasia').ok).toBe(true)
   })
 })

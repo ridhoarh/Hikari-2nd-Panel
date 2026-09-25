@@ -53,7 +53,7 @@ function SetupPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
       <h1 className="text-2xl font-semibold">Selamat datang di Hikari</h1>
       <p className="mt-2 text-sm text-ink-muted">
-        Bikin akun admin dulu. Password minimal 12 karakter.
+        Bikin akun admin dulu. Password minimal 6 karakter.
       </p>
 
       <form onSubmit={submit} className="mt-8 space-y-4">
