@@ -35,6 +35,7 @@ import {
   setTlsStatus,
 } from '../repositories/domains'
 import { validateHostname } from '../caddy/config'
+import { probeCertStatus } from '../caddy/cert-status'
 import type { Database } from '../db/client'
 
 const MASK = '••••••••'
@@ -63,6 +64,8 @@ export type AppRoutesDeps = {
   db: Database
   cryptoKey: Buffer
   deployKeyDir: string
+  /** Folder data Caddy, dipakai buat baca status sertifikat beneran. */
+  caddyDataDir: string
   onDeploy: (appId: string) => void
   onDomainChange: () => void
   /** Dipanggil pas app baru dibikin, biar bare repo git-nya langsung siap. */
@@ -315,12 +318,41 @@ export function createAppRoutes(deps: AppRoutesDeps): Hono {
     return c.json({ ok: true })
   })
 
-  router.post('/apps/:id/domains/:domainId/check', (c) => {
+  /**
+   * Cek ulang status sertifikat TLS buat satu domain.
+   *
+   * Sebelumnya endpoint ini cuma nge-set 'pending' tanpa baca apa-apa,
+   * jadi statusnya selamanya "Nunggu sertifikat" walau sertifikatnya udah
+   * terbit. Sekarang beneran dibaca dari file sertifikat Caddy.
+   */
+  router.post('/apps/:id/domains/:domainId/check', async (c) => {
     const id = c.req.param('id')
     if (!getApp(db, id)) return c.json({ error: 'App nggak ketemu' }, 404)
 
-    setTlsStatus(db, c.req.param('domainId'), 'pending')
-    return c.json({ ok: true, tlsStatus: 'pending' })
+    const domainId = c.req.param('domainId')
+    const domain = listDomains(db, id).find((d) => d.id === domainId)
+    if (!domain) return c.json({ error: 'Domain nggak ketemu' }, 404)
+
+    const status = await probeCertStatus(
+      {
+        caddyDataDir: deps.caddyDataDir,
+        readExpiry: async (certPath) => {
+          const proc = Bun.spawn(['openssl', 'x509', '-in', certPath, '-noout', '-enddate'], {
+            stdout: 'pipe',
+            stderr: 'pipe',
+          })
+          const out = await new Response(proc.stdout).text()
+          const err = await new Response(proc.stderr).text()
+          const code = await proc.exited
+          if (code !== 0) throw new Error(err.trim() || 'openssl gagal')
+          return out
+        },
+      },
+      domain.hostname
+    )
+
+    setTlsStatus(db, domainId, status)
+    return c.json({ ok: true, tlsStatus: status })
   })
 
   return router

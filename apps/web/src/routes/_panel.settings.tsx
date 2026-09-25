@@ -17,6 +17,16 @@ type Settings = {
   dockerAvailable: boolean
   ramUsedMb: number
   ramTotalMb: number
+  disk: {
+    total: number
+    free: number
+    used: number
+    percent: number
+    warning: boolean
+    totalLabel: string
+    usedLabel: string
+    freeLabel: string
+  } | null
 }
 
 function SettingsPage() {
@@ -90,7 +100,24 @@ function SettingsPage() {
                   {settings ? `${settings.ramUsedMb} / ${settings.ramTotalMb} MB` : '—'}
                 </dd>
               </div>
+              <div className="flex justify-between">
+                <dt className="text-ink-muted">Disk</dt>
+                <dd className="font-mono text-xs">
+                  {settings?.disk
+                    ? `${settings.disk.usedLabel} / ${settings.disk.totalLabel} (${settings.disk.percent}%)`
+                    : '—'}
+                </dd>
+              </div>
             </dl>
+
+            {settings?.disk?.warning && (
+              <p className="mt-3 rounded-card border border-warn/40 bg-warn/10 px-3 py-2 text-xs">
+                Disk-nya udah kepake {settings.disk.percent}% (sisa{' '}
+                {settings.disk.freeLabel}). Disk penuh itu penyebab VPS mati yang
+                paling sering. Coba bersihin image Docker yang nggak kepake:
+                <code className="ml-1 font-mono">docker system prune -a</code>
+              </p>
+            )}
           </CardBody>
         </Card>
 

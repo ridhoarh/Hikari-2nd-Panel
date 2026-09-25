@@ -1,10 +1,51 @@
 import { Hono } from 'hono'
 import { totalmem, freemem } from 'node:os'
+import { statfs } from 'node:fs/promises'
 import type { Database } from '../db/client'
 import { HIKARI_VERSION } from '../lib/version'
 import { getDocker, pingDocker } from '../docker/client'
+import { formatBytes, diskPercent, isDiskWarning } from '../lib/disk'
 
 const MB = 1024 * 1024
+
+type DiskInfo = {
+  total: number
+  free: number
+  used: number
+  percent: number
+  warning: boolean
+  totalLabel: string
+  usedLabel: string
+  freeLabel: string
+}
+
+async function readDiskInfo(path: string): Promise<DiskInfo | null> {
+  try {
+    const s = await statfs(path)
+    // bsize/bavail di Node bisa bigint kalau opsinya diaktifin. Kita
+    // konversi ke number biar perhitungannya sederhana.
+    const bsize = Number(s.bsize)
+    const total = bsize * Number(s.blocks)
+    const free = bsize * Number(s.bavail)
+    const used = total - free
+    const percent = diskPercent({ total, free })
+
+    return {
+      total,
+      free,
+      used,
+      percent,
+      warning: isDiskWarning(percent),
+      totalLabel: formatBytes(total),
+      usedLabel: formatBytes(used),
+      freeLabel: formatBytes(free),
+    }
+  } catch {
+    // statfs bisa gagal di filesystem aneh; disk info jadi null aja,
+    // jangan bikin seluruh halaman settings error.
+    return null
+  }
+}
 
 export type SettingsDeps = {
   db: Database
@@ -17,12 +58,14 @@ export function createSettingsRoutes(deps: SettingsDeps): Hono {
 
   router.get('/settings', async (c) => {
     const dockerAvailable = await pingDocker(getDocker())
+
     return c.json({
       version: HIKARI_VERSION,
       dataDir: deps.dataDir,
       dockerAvailable,
       ramUsedMb: Math.round((totalmem() - freemem()) / MB),
       ramTotalMb: Math.round(totalmem() / MB),
+      disk: await readDiskInfo(deps.dataDir),
     })
   })
 

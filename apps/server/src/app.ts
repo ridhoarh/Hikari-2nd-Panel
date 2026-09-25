@@ -49,6 +49,8 @@ export type AppConfig = {
   dataDir?: string
   staticDir?: string
   caddyfilePath?: string
+  /** Folder data Caddy, dipakai buat baca status sertifikat. */
+  caddyDataDir?: string
   panelDomain?: string | null
   acmeEmail?: string
   /** Dipakai buat nampilin alamat yang bener di connection string publik. */
@@ -95,6 +97,10 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
   // Satu fungsi sync Caddy dipakai bareng oleh onDomainChange dan tombol di
   // halaman settings, biar argumennya nggak ditulis dua kali.
   const syncCaddySekarang = () => {
+    // Nggak boleh ngelempar: ini dipanggil dari handler yang udah nyimpen
+    // perubahannya. Kalau Caddy-nya belum keinstal atau folder-nya nggak
+    // bisa ditulis, user tetap harus dapet jawaban sukses — config-nya
+    // bisa disinkron ulang belakangan dari halaman Settings.
     void syncCaddy({
       db,
       caddyfilePath: config.caddyfilePath ?? '/etc/caddy/Caddyfile',
@@ -102,7 +108,12 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
       panelDomain: config.panelDomain ?? null,
       adminUrl: 'http://127.0.0.1:2019/load',
       acmeEmail: config.acmeEmail,
-    }).catch((err) => console.error('[hikari] sync caddy gagal:', err))
+    }).catch((err) =>
+      console.error(
+        '[hikari] sync caddy gagal (domain tetap kesimpen, sinkron ulang dari Settings):',
+        err instanceof Error ? err.message : err
+      )
+    )
   }
 
   const queue = createDeployQueue({
@@ -227,6 +238,7 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
       deployKeyDir,
       onDeploy: (appId) => void queue.enqueue(appId),
       onDomainChange: syncCaddySekarang,
+      caddyDataDir: config.caddyDataDir ?? '/var/lib/caddy/.local/share/caddy',
       onAppCreated: (app) => {
         void setupRepoForApp({
           db,

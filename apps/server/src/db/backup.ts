@@ -13,10 +13,90 @@ export type BackupRecord = {
 }
 
 export function backupFilename(engine: DbEngine, databaseId: string): string | null {
-  // Redis nggak punya dump ke stdout yang gampang; dilewat di Fase 2.
-  if (engine === 'redis') return null
   const aman = databaseId.replace(/[^A-Za-z0-9_-]/g, '')
+  // Redis disimpen sebagai RDB, bukan SQL.
+  if (engine === 'redis') return `backup-${aman}.rdb`
   return `backup-${aman}.sql`
+}
+
+/**
+ * Perintah buat REDIS: paksa tulis snapshot ke disk, terus baca file-nya.
+ *
+ * Password dikirim lewat env `REDISCLI_AUTH`, BUKAN argumen `-a`. Dua alasan:
+ *  - `-a` muncul di daftar argumen proses, dan bisa dibaca user lain lewat `ps`.
+ *  - `--no-auth-warning` cuma nyembunyiin peringatan, bukan ngirim password.
+ *    Tanpa `REDISCLI_AUTH`, perintahnya gagal `NOAUTH`.
+ *
+ * Password-nya dikirim pakai `docker exec -e`, BUKAN lewat `env` proses `docker`.
+ * `docker exec` nggak nerusin environment host ke dalam container, jadi env
+ * yang cuma ditempel di proses `docker` nggak bakal kebaca `redis-cli` di
+ * dalam — gejalanya `NOAUTH` walau kita udah nge-set `REDISCLI_AUTH`.
+ *
+ * `BGSAVE` itu asynchronous — balik langsung, tapi tulisannya belum tentu
+ * kelar. Cara nunggunya: baca field `rdb_bgsave_in_progress` dari
+ * `INFO persistence`.
+ *
+ * JANGAN pakai perubahan `LASTSAVE` sebagai penanda selesai. Container Hikari
+ * jalan dengan `--appendonly yes`, dan Redis mematikan RDB periodik di mode
+ * itu. Jadi `BGSAVE` bisa jadi menulis snapshot tanpa update `LASTSAVE`, dan
+ * penantian berbasis timestamp bakal nunggu sampai timeout terus-terusan.
+ *
+ * CATATAN: `password` sengaja masuk ke daftar argumen `docker exec -e`. Itu
+ * kompromi yang disadari — `-e VAR=nilai` harus jadi argumen. Yang penting
+ * password nggak muncul di daftar argumen `redis-cli` di dalam container,
+ * dan `ps` di dalam container memang nggak nunjukin proses `docker exec`.
+ */
+export function redisBackupCommands(opts: {
+  containerName: string
+  password: string
+}) {
+  // `-e KEY=value` harus dikirim ke `docker exec`, bukan ke proses host.
+  const auth = ['-e', `REDISCLI_AUTH=${opts.password}`]
+  const cli = ['redis-cli']
+  return {
+    bgsave: {
+      cmd: 'docker',
+      args: ['exec', ...auth, opts.containerName, ...cli, 'BGSAVE'],
+    },
+    /**
+     * Progres BGSAVE. Keluarannya `rdb_bgsave_in_progress:0|1`.
+     */
+    cekBgsave: {
+      cmd: 'docker',
+      args: ['exec', ...auth, opts.containerName, ...cli, 'INFO', 'persistence'],
+    },
+    /**
+     * Ambil dump.rdb dari dalam container ke stdout.
+     *
+     * `cat` dipakai, bukan `docker cp`, karena `cp` nulis ke path host —
+     * dan kita mau isinya lewat pipe biar seragam sama dump SQL.
+     */
+    bacaDump: {
+      cmd: 'docker',
+      args: ['exec', opts.containerName, 'cat', '/data/dump.rdb'],
+    },
+  }
+}
+
+/**
+ * `BGSAVE` lagi jalan kalau `rdb_bgsave_in_progress` bernilai `1` di keluaran
+ * `INFO persistence`. Kalau field-nya nggak ada, dianggap udah kelar biar
+ * nggak nyangkut nunggu field yang nggak pernah muncul.
+ *
+ * Toleran terhadap `\r` (output dari Windows/mode lain) dan spasi sesudah
+ * titik dua, karena format itu bisa beda antar versi Redis.
+ */
+export function bgsaveMasihJalan(info: string): boolean {
+  return /(^|\r?\n)rdb_bgsave_in_progress:[ \t]*1[ \t]*(\r?\n|$)/.test(info)
+}
+
+/**
+ * Status terakhir BGSAVE dari `INFO persistence`, dipakai buat pesan error
+ * yang jelas waktu gagal.
+ */
+export function bgsaveStatusTerakhir(info: string): string {
+  const status = info.match(/(^|\r?\n)rdb_last_bgsave_status:[ \t]*(\w+)/)?.[2]
+  return status ?? 'tidak diketahui'
 }
 
 /**

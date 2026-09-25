@@ -78,8 +78,11 @@ export const ENGINES: Record<DbEngine, EngineSpec> = {
       REDIS_PASSWORD: password,
     }),
     dataDir: '/data',
-    // Redis nggak punya dump ke stdout yang gampang; backup pakai BGSAVE
-    // ke volume. Jadi nggak ada perintah dump manual di Fase 2.
+    /**
+     * Redis nggak punya dump ke stdout. Yang bisa: BGSAVE, terus file
+     * dump.rdb di /data dikopi keluar pakai `docker cp`. Jadi `dumpArgs`
+     * tetap null — jalur backup-nya beda dan diurus di backup.ts.
+     */
     dumpArgs: () => null,
   },
 }

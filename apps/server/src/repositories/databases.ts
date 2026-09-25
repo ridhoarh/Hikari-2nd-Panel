@@ -32,6 +32,11 @@ export const HOST_PORT_MAX = 29999
 /**
  * Cari host port kosong. Dipakai port yang paling kecil biar rapi, dan
  * lubang yang ditinggal database yang dihapus dipakai lagi.
+ *
+ * Sengaja cuma lihat database yang ADA DI DATABASE Hikari. Container sisa
+ * yang nggak kecatet (misal dari percobaan yang gagal di tengah) nggak
+ * keliatan dari sini — makanya `runDbContainer` juga nge-handle kasus port
+ * bentrok dengan pesan yang jelas.
  */
 export function allocateHostPort(db: Database): number {
   const rows = db.query('SELECT host_port FROM databases').all() as {

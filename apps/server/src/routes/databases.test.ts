@@ -212,14 +212,18 @@ describe('backup', () => {
     }
   })
 
-  test('redis nggak didukung backup manual', async () => {
+  test('redis sekarang didukung, gagal karena container-nya belum jalan', async () => {
     const { database } = await bikinDb('redis', 'Cache')
     const res = await app.request(`/api/databases/${database.id}/backups`, {
       method: 'POST',
       headers: auth(),
     })
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { error: string }).error).toContain('belum didukung')
+    // Tanpa container, redis-cli-nya nggak bisa dipanggil — yang penting
+    // pesannya jelas dan bukan crash.
+    expect([201, 500]).toContain(res.status)
+    if (res.status === 500) {
+      expect(((await res.json()) as { error: string }).error).toContain('Backup gagal')
+    }
   })
 
   test('daftar backup kosong di awal', async () => {

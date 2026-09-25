@@ -103,8 +103,31 @@ export async function runDbContainer(
     // network-nya emang udah ada, nggak apa-apa
   })
 
+  const key = `${opts.containerPort}/tcp`
+
+  // Bind port bisa gagal kalau port-nya kepake proses lain, ATAU kalau ada
+  // container sisa yang masih nyantolin port yang sama. Kalau kejadian,
+  // container-nya udah keburu kebikin dalam keadaan mati — dan itu bikin
+  // percobaan berikutnya gagal lagi dengan error yang sama. Jadi kalau
+  // start-nya gagal, container-nya dibuang biar nggak nyangkut.
   const container = await docker.createContainer(buildDbContainerConfig(opts))
-  await container.start()
+
+  try {
+    await container.start()
+  } catch (err) {
+    await container.remove({ force: true, v: false }).catch(() => undefined)
+
+    const pesan = err instanceof Error ? err.message : String(err)
+    if (/port is already allocated|address already in use/i.test(pesan)) {
+      throw new Error(
+        `Port host ${opts.hostPort} udah kepake. Biasanya karena ada database ` +
+          `lain yang masih jalan, atau container sisa dari percobaan sebelumnya. ` +
+          `Cek: docker ps -a | grep ${opts.hostPort}`
+      )
+    }
+    throw err
+  }
+
   return container.id
 }
 

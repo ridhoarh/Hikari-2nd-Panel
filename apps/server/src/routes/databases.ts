@@ -5,10 +5,13 @@ import {
   backupCommand,
   backupFilename,
   backupPath,
+  bgsaveMasihJalan,
+  bgsaveStatusTerakhir,
   deleteBackupRecord,
   getBackup,
   listBackups,
   recordBackup,
+  redisBackupCommands,
   writeBackupFile,
 } from '../db/backup'
 import { describeDatabase, startDatabase, stopDatabase, changeAccessMode, destroyDatabase } from '../db/service'
@@ -143,7 +146,9 @@ export function createDatabaseRoutes(deps: DatabaseRoutesDeps): Hono {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       db.query('UPDATE databases SET status = ? WHERE id = ?').run('failed', id)
-      return c.json({ error: message }, 500)
+      // 409 buat bentrok port: itu konflik keadaan, bukan kesalahan server.
+      const kode = /udah kepake/i.test(message) ? 409 : 500
+      return c.json({ error: message }, kode)
     }
   })
 
@@ -221,13 +226,75 @@ export function createDatabaseRoutes(deps: DatabaseRoutesDeps): Hono {
     const filename = backupFilename(record.engine as DbEngine, record.id)
     if (!filename) {
       return c.json(
-        { error: `Backup otomatis belum didukung buat ${record.engine}` },
+        { error: `Backup belum didukung buat ${record.engine}` },
         400
       )
     }
 
+    const engine = record.engine as DbEngine
+
+    // Redis nggak bisa dump ke stdout. Jalurnya: paksa BGSAVE, tunggu
+    // snapshot-nya kelar, baru baca file dump.rdb-nya.
+    if (engine === 'redis') {
+      // Password dikirim lewat `docker exec -e` di dalam `redisBackupCommands`,
+      // bukan lewat `env` proses `docker` — env host nggak nerus ke container.
+      const cmds = redisBackupCommands({
+        containerName: dbContainerName(record.id),
+        password: readPassword(record.password, cryptoKey),
+      })
+      try {
+        await run(cmds.bgsave.cmd, cmds.bgsave.args)
+
+        // BGSAVE balik langsung, tapi tulisannya belum tentu kelar. Tunggu
+        // sampai `rdb_bgsave_in_progress` balik ke 0, maksimal ~60 detik.
+        //
+        // Sengaja BUKAN berbasis perubahan `LASTSAVE`: container jalan
+        // dengan `--appendonly yes`, dan di mode itu Redis mematikan RDB
+        // periodik — timestamp-nya bisa nggak pernah berubah walau BGSAVE
+        // sebenarnya bikin snapshot baru.
+        let info = ''
+        let selesai = false
+        for (let i = 0; i < 60; i++) {
+          info = await run(cmds.cekBgsave.cmd, cmds.cekBgsave.args)
+          if (!bgsaveMasihJalan(info)) {
+            selesai = true
+            break
+          }
+          await new Promise((r) => setTimeout(r, 1000))
+        }
+
+        if (!selesai) {
+          return c.json(
+            { error: 'Redis-nya nggak kelar nulis snapshot (timeout 60 detik)' },
+            500
+          )
+        }
+
+        // BGSAVE bisa "kelar" tapi gagal — misalnya disk penuh. Cek
+        // status terakhirnya biar errornya jelas, bukan ketelen jadi file
+        // dump.rdb lama yang keliatan sukses.
+        const status = bgsaveStatusTerakhir(info)
+        if (status !== 'ok') {
+          return c.json(
+            { error: `Redis gagal nulis snapshot (status: ${status})` },
+            500
+          )
+        }
+
+        const isi = await run(cmds.bacaDump.cmd, cmds.bacaDump.args, {
+          timeoutMs: 10 * 60 * 1000,
+        })
+        const size = writeBackupFile(backupDir, filename, isi)
+        const backup = recordBackup(db, id, filename, size)
+        return c.json({ backup }, 201)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return c.json({ error: `Backup gagal: ${message}` }, 500)
+      }
+    }
+
     const cmd = backupCommand({
-      engine: record.engine as DbEngine,
+      engine,
       containerName: dbContainerName(record.id),
       user: record.db_user,
       password: readPassword(record.password, cryptoKey),
