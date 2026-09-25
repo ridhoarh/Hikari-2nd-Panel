@@ -15,6 +15,7 @@ SERVICE_USER="hikari"
 # Selain itu, semua env-nya dibaca SETELAH os-release di-source, biar
 # nilai dari sistem nggak ketiban.
 log()  { printf '\033[0;36m[hikari]\033[0m %s\n' "$1"; }
+warn() { printf '\033[0;33m[hikari]\033[0m %s\n' "$1"; }
 fail() { printf '\033[0;31m[error]\033[0m %s\n' "$1" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || fail "Jalanin pakai sudo: curl -fsSL ... | sudo bash"
@@ -24,6 +25,8 @@ fail() { printf '\033[0;31m[error]\033[0m %s\n' "$1" >&2; exit 1; }
 # baca sesudahnya, nilai dari file yang menang dan env user ketiban.
 ENV_HIKARI_VERSION="${HIKARI_VERSION:-}"
 ENV_HIKARI_PORT="${HIKARI_PORT:-}"
+ENV_HIKARI_VPS_IP="${HIKARI_VPS_IP:-}"
+ENV_HIKARI_ACME_EMAIL="${HIKARI_ACME_EMAIL:-}"
 
 if [ -f /etc/os-release ]; then
   # shellcheck disable=SC1091
@@ -39,6 +42,15 @@ fi
 
 VERSION="${ENV_HIKARI_VERSION:-latest}"
 PORT="${ENV_HIKARI_PORT:-2508}"
+VPS_IP="${ENV_HIKARI_VPS_IP:-}"
+ACME_EMAIL="${ENV_HIKARI_ACME_EMAIL:-}"
+
+# Kalau IP nggak dikasih, tebak dari interface utama. Dipakai buat nampilin
+# alamat koneksi database publik — tanpa ini panel bakal nulis 127.0.0.1,
+# yang bikin connection string-nya menyesatkan kalau di-copy ke luar.
+if [ -z "${VPS_IP}" ]; then
+  VPS_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
 
 # Validasi versi: cuma "latest" atau tag rilis yang bentuknya `v` + angka titik.
 # Tanpa ini, nilai yang kebetulan ke-set di sistem (umpamanya VERSION dari
@@ -81,9 +93,33 @@ else
   apt-get update -qq && apt-get install -y -qq openssh-client
 fi
 
+# `openssl` dipakai panel buat baca tanggal kedaluwarsa sertifikat waktu
+# ngecek status TLS domain. Tanpa ini, endpoint cek sertifikat bakal error.
+if command -v openssl >/dev/null 2>&1; then
+  log "openssl udah ada"
+else
+  log "Install openssl..."
+  apt-get update -qq && apt-get install -y -qq openssl
+fi
+
 log "Bikin user ${SERVICE_USER}..."
 id -u "${SERVICE_USER}" >/dev/null 2>&1 || \
   useradd --system --create-home --shell /usr/sbin/nologin "${SERVICE_USER}"
+
+# Masukin user `hikari` ke grup `docker`.
+#
+# systemd unit juga punya `SupplementaryGroups=docker`, dan itu yang bikin
+# SERVICE-nya bisa akses Docker. Tapi tanpa baris ini, user `hikari` sendiri
+# (kalau login shell buat debug) nggak bisa jalanin `docker ps` --
+# `permission denied`. Bikin bingung waktu nyari masalah.
+if getent group docker >/dev/null 2>&1; then
+  if id -nG "${SERVICE_USER}" | tr ' ' '\n' | grep -qx docker; then
+    log "User ${SERVICE_USER} udah di grup docker"
+  else
+    log "Masukin ${SERVICE_USER} ke grup docker..."
+    usermod -aG docker "${SERVICE_USER}"
+  fi
+fi
 
 log "Siapin folder..."
 mkdir -p "${INSTALL_DIR}" "${DATA_DIR}" "${DATA_DIR}/keys" "${DATA_DIR}/logs" \
@@ -133,6 +169,115 @@ fi
 
 log "Bun: $(/usr/local/bin/bun --version)"
 
+# --- Caddy -------------------------------------------------------------
+#
+# Caddy yang ngurus domain + HTTPS otomatis. Tanpa ini, fitur domain nggak
+# jalan sama sekali: `syncCaddy` bakal gagal nyambung ke admin API-nya, dan
+# panel cuma bisa diakses lewat `IP:2508` tanpa TLS.
+#
+# Dipasang dari repo resmi Caddy, BUKAN dari apt default Ubuntu — yang di
+# apt itu versi lama dan nggak punya beberapa direktif yang kita pakai.
+repair_caddy() {
+  if ! command -v caddy >/dev/null 2>&1; then
+    return 1
+  fi
+
+  # Caddy wajib punya admin API di 127.0.0.1:2019 — panel nembak ke situ
+  # buat reload config. Kalau nggak nyala, domain tersimpen tapi config-nya
+  # nggak pernah kepasang.
+  if curl -fsS -m 3 http://127.0.0.1:2019/config/ >/dev/null 2>&1; then
+    return 0
+  fi
+
+  log "Nyalain ulang Caddy..."
+  systemctl restart caddy >/dev/null 2>&1 || true
+  for _ in $(seq 1 10); do
+    sleep 1
+    if curl -fsS -m 3 http://127.0.0.1:2019/config/ >/dev/null 2>&1; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if command -v caddy >/dev/null 2>&1; then
+  log "Caddy udah ada: $(caddy version | head -1)"
+else
+  # Port 80/443 dipakai buat ACME HTTP-01 challenge dan HTTPS. Kalau udah
+  # ditempati (misal Dokploy atau nginx), pemasangan bakal gagal start —
+  # jadi dicek dulu dan dikasih pesan yang jelas.
+  KETEMU=""
+  for p in 80 443; do
+    if ss -ltn 2>/dev/null | grep -q ":${p} "; then
+      KETEMU="${KETEMU} ${p}"
+    fi
+  done
+  if [ -n "${KETEMU}" ]; then
+    warn "Port${KETEMU} udah kepake proses lain."
+    warn "Caddy butuh port 80 & 443 buat HTTPS otomatis. Fitur domain bakal"
+    warn "nggak jalan sampai port-nya dibebasin. Panelnya sendiri tetap hidup"
+    warn "di port ${PORT}."
+  fi
+
+  log "Install Caddy..."
+  apt-get update -qq
+  apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gpg
+  curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key \
+    | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
+    || fail "Gagal ambil GPG key Caddy"
+  curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt \
+    | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null \
+    || fail "Gagal nambah repo Caddy"
+  apt-get update -qq
+  apt-get install -y -qq caddy || fail "Gagal install Caddy"
+fi
+
+# Caddyfile awal. `syncCaddy` bakal nimpa isinya tiap ada domain baru, jadi
+# yang penting di sini cuma bikin file-nya ada plus admin API di loopback.
+if [ ! -f /etc/caddy/Caddyfile ]; then
+  log "Bikin Caddyfile awal..."
+  mkdir -p /etc/caddy
+  cat > /etc/caddy/Caddyfile <<'CADDYEOF'
+{
+	admin 127.0.0.1:2019
+}
+CADDYEOF
+fi
+
+# PENTING: panel nulis ulang Caddyfile tiap ada domain baru, dan panelnya
+# jalan sebagai user `hikari` — BUKAN root.
+#
+# Paket Caddy nyimpen file-nya sebagai `root:root` mode 644, jadi user
+# `hikari` nggak bisa nulis dan tiap sinkronisasi gagal dengan
+# `EACCES: permission denied, open '/etc/caddy/Caddyfile'`.
+# Gejalanya: domain kesimpen di panel, tapi Caddy nggak pernah dapet
+# config-nya — dan itu nggak kelihatan sampai domainnya dicoba.
+#
+# Solusinya: kasih grup `hikari` kepemilikan file-nya, mode 664. Group-nya
+# tetap punya akses, `caddy` (jalan sebagai root) tetap bisa baca.
+if [ -f /etc/caddy/Caddyfile ]; then
+  if ! sudo -u "${SERVICE_USER}" test -w /etc/caddy/Caddyfile 2>/dev/null; then
+    log "Kasih akses tulis Caddyfile ke user ${SERVICE_USER}..."
+    chown root:"${SERVICE_USER}" /etc/caddy/Caddyfile
+    chmod 664 /etc/caddy/Caddyfile
+  fi
+fi
+
+# Folder sertifikat harus bisa dibaca panel buat ngecek status TLS domain.
+# `caddy` bikin folder-nya pas pertama kali nyala, jadi bisa aja belum ada.
+mkdir -p /var/lib/caddy/.local/share/caddy
+chown -R caddy:caddy /var/lib/caddy/.local/share/caddy 2>/dev/null || true
+chmod 755 /var/lib/caddy /var/lib/caddy/.local /var/lib/caddy/.local/share 2>/dev/null || true
+# Panel cuma perlu BACA isinya (nama file + tanggal kedaluwarsa).
+chmod -R a+rX /var/lib/caddy/.local/share/caddy 2>/dev/null || true
+
+systemctl enable caddy >/dev/null 2>&1 || true
+if ! repair_caddy; then
+  warn "Caddy belum bisa dihubungi di 127.0.0.1:2019."
+  warn "Cek manual: systemctl status caddy && journalctl -u caddy -n 30"
+  warn "Domain nggak bakal kepasang sampai ini beres."
+fi
+
 # Pin host key sekali. Tanpa ini, git clone nggak bisa verifikasi identitas
 # server git, jadi deploy key bisa dicuri lewat MITM.
 log "Pin host key SSH..."
@@ -143,10 +288,23 @@ chmod 644 "${DATA_DIR}/known_hosts"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}" "${DATA_DIR}"
 
 log "Pasang systemd unit..."
+
+# Kalau `HIKARI_ACME_EMAIL` kosong, barisnya SENGAJA nggak ditulis sama sekali.
+# Nulis `HIKARI_ACME_EMAIL=` kosong bikin panel nge-set email kosong ke
+# Caddyfile (`email `), dan Let's Encrypt nolak pendaftaran tanpa email.
+ACME_LINE=""
+if [ -n "${ACME_EMAIL}" ]; then
+  ACME_LINE="Environment=HIKARI_ACME_EMAIL=${ACME_EMAIL}"
+fi
+
 cat > /etc/systemd/system/hikari.service <<UNIT
 [Unit]
 Description=Hikari
-After=network.target docker.service
+# Caddy ikut ditunggu: panel nembak admin API-nya buat pasang config domain.
+# Tanpa ini, panel bisa nyala duluan dan reload pertama-nya gagal (nggak fatal,
+# tapi bikin log kotor dan domain telat kepasang).
+After=network.target docker.service caddy.service
+Wants=caddy.service
 Requires=docker.service
 
 [Service]
@@ -164,6 +322,11 @@ Environment=HIKARI_PORT=${PORT}
 Environment=HIKARI_DATA=${DATA_DIR}
 Environment=HIKARI_STATIC=${DATA_DIR}/www
 Environment=HIKARI_CADDYFILE=/etc/caddy/Caddyfile
+# Dibaca panel buat nampilin alamat publik di connection string database.
+Environment=HIKARI_VPS_IP=${VPS_IP}
+# Lokasi sertifikat Caddy, dipakai buat ngecek status TLS domain beneran.
+Environment=HIKARI_CADDY_DATA=/var/lib/caddy/.local/share/caddy
+${ACME_LINE}
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 SupplementaryGroups=docker
 
@@ -174,6 +337,18 @@ UNIT
 systemctl daemon-reload
 systemctl enable --now hikari
 
-IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+IP="${VPS_IP:-}"
 log "Selesai."
-log "Buka http://${IP:-IP-VPS-KAMU}:${PORT} buat setup akun admin."
+log "Panel: http://${IP:-IP-VPS-KAMU}:${PORT}"
+log "DB:    /var/lib/hikari"
+
+if [ -n "${IP}" ]; then
+  log "Connection string publik bakal pakai IP ${IP}."
+fi
+
+if ! curl -fsS -m 3 http://127.0.0.1:2019/config/ >/dev/null 2>&1; then
+  warn "Caddy belum jalan, jadi domain + HTTPS belum aktif. Panel tetap bisa"
+  warn "dipakai lewat IP:${PORT}. Beresin Caddy dulu, terus restart service:"
+  warn "  sudo systemctl status caddy"
+  warn "  sudo systemctl restart hikari"
+fi

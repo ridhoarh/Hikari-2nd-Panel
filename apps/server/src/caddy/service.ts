@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Database } from '../db/client'
 import { getApp } from '../repositories/apps'
@@ -12,14 +12,38 @@ export function writeCaddyfile(path: string, content: string): void {
   writeFileSync(path, content, 'utf8')
 }
 
+/**
+ * Suruh Caddy baca file config yang baru.
+ *
+ * Endpoint `/load` butuh isi Caddyfile-nya DIKIRIM sebagai body request.
+ * Kalau body-nya kosong, Caddy bales:
+ *
+ *  400 adapting config using caddyfile adapter: EOF
+ *
+ * Itu pesan yang menyesatkan — kelihatannya kayak file config-nya rusak,
+ * padahal yang salah cuma request-nya nggak ngekirim apa-apa.
+ *
+ * `Content-Type: text/caddyfile` bikin Caddy nge-parse body-nya pakai
+ * adapter Caddyfile; tanpa header itu dia nge-anggapnya JSON.
+ */
 export async function reloadCaddy(
   adminUrl: string,
+  caddyfilePath: string,
   fetchImpl: typeof fetch = fetch
 ): Promise<{ ok: boolean; error?: string }> {
+  let content: string
+  try {
+    content = readFileSync(caddyfilePath, 'utf8')
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: `Nggak bisa baca Caddyfile: ${message}` }
+  }
+
   try {
     const res = await fetchImpl(adminUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/caddyfile' },
+      body: content,
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
@@ -74,7 +98,11 @@ export async function syncCaddy(deps: SyncDeps): Promise<void> {
   // kehilangan config-nya sama sekali.
   writeCaddyfile(deps.caddyfilePath, content)
 
-  const result = await reloadCaddy(deps.adminUrl, deps.fetchImpl ?? fetch)
+  const result = await reloadCaddy(
+    deps.adminUrl,
+    deps.caddyfilePath,
+    deps.fetchImpl ?? fetch
+  )
   if (!result.ok) {
     console.error('[hikari] gagal reload Caddy:', result.error)
   }
