@@ -2,26 +2,57 @@
 set -euo pipefail
 
 REPO="ridhoarh/Hikari-2nd-Panel"
-VERSION="${HIKARI_VERSION:-latest}"
-PORT="${HIKARI_PORT:-2508}"
 INSTALL_DIR="/opt/hikari"
 DATA_DIR="/var/lib/hikari"
 SERVICE_USER="hikari"
 
+# PENTING: variabel di bawah dibaca pakai nama ber-prefix `HIKARI_`, dan
+# itu bukan gaya-gayaan. `/etc/os-release` di-source di bawah, dan file itu
+# punya variabel `VERSION` yang isinya "24.04.4 LTS (Noble Numbat)".
+# Kalau script ini baca `VERSION` telanjang, dia bakal kepakai dan URL
+# download-nya jadi ngaco.
+#
+# Selain itu, semua env-nya dibaca SETELAH os-release di-source, biar
+# nilai dari sistem nggak ketiban.
 log()  { printf '\033[0;36m[hikari]\033[0m %s\n' "$1"; }
 fail() { printf '\033[0;31m[error]\033[0m %s\n' "$1" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || fail "Jalanin pakai sudo: curl -fsSL ... | sudo bash"
 
+# Simpen nilai dari environment SEBELUM os-release di-source. File itu punya
+# variabel `VERSION`, `NAME`, `ID`, `HOME_URL`, dan sejenisnya — kalau kita
+# baca sesudahnya, nilai dari file yang menang dan env user ketiban.
+ENV_HIKARI_VERSION="${HIKARI_VERSION:-}"
+ENV_HIKARI_PORT="${HIKARI_PORT:-}"
+
 if [ -f /etc/os-release ]; then
+  # shellcheck disable=SC1091
   . /etc/os-release
   case "${ID:-}" in
     ubuntu|debian) ;;
     *) fail "Cuma Ubuntu/Debian yang didukung. Ketemu: ${ID:-unknown}" ;;
   esac
+  log "Sistem: ${PRETTY_NAME:-$ID}"
 else
   fail "Nggak bisa baca /etc/os-release"
 fi
+
+VERSION="${ENV_HIKARI_VERSION:-latest}"
+PORT="${ENV_HIKARI_PORT:-2508}"
+
+# Validasi versi: cuma "latest" atau tag rilis yang bentuknya `v` + angka titik.
+# Tanpa ini, nilai yang kebetulan ke-set di sistem (umpamanya VERSION dari
+# os-release) bisa bikin URL download ngaco dengan error yang nggak jelas.
+case "$VERSION" in
+  latest) ;;
+  v[0-9]*.[0-9]*.[0-9]*) ;;
+  v[0-9]*.[0-9]*) ;;
+  *) fail "HIKARI_VERSION='$VERSION' nggak valid. Isi 'latest' atau tag kayak v0.1.0." ;;
+esac
+
+case "$PORT" in
+  ''|*[!0-9]*) fail "HIKARI_PORT='$PORT' harus angka" ;;
+esac
 
 if ! command -v docker >/dev/null 2>&1; then
   log "Docker belum ada, install dulu..."
@@ -75,11 +106,32 @@ if [ -d "${INSTALL_DIR}/apps/web/dist" ]; then
   cp -r "${INSTALL_DIR}/apps/web/dist/." "${DATA_DIR}/www/"
 fi
 
-command -v bun >/dev/null 2>&1 || {
-  log "Install Bun..."
-  curl -fsSL https://bun.sh/install | bash
-  ln -sf /root/.bun/bin/bun /usr/local/bin/bun
-}
+log "Siapin Bun..."
+if ! command -v bun >/dev/null 2>&1 || ! [ -x /usr/local/bin/bun ]; then
+  # PENTING: Bun di-install ke /usr/local biar bisa diakses user `hikari`.
+  #
+  # Cara yang gampang (curl bun.sh/install | bash) naruh Bun di
+  # /root/.bun, terus di-symlink. Itu GAGAL: /root mode-nya 700, jadi user
+  # `hikari` nggak bisa nembus folder-nya dan systemd-nya error
+  # "Failed to execute /usr/local/bin/bun: Permission denied" (203/EXEC)
+  # -- service-nya crash-loop tanpa henti.
+  #
+  # Jadi: pasang ke /usr/local/bin, sesuai dokumentasi Bun buat system-wide.
+  if ! command -v unzip >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y -qq unzip
+  fi
+
+  BUN_VERSION="${HIKARI_BUN_VERSION:-latest}"
+  curl -fsSL https://bun.sh/install -o /tmp/hikari-bun-install.sh
+  BUN_INSTALL=/usr/local bash /tmp/hikari-bun-install.sh
+  rm -f /tmp/hikari-bun-install.sh
+
+  if [ ! -x /usr/local/bin/bun ]; then
+    fail "Gagal masang Bun ke /usr/local/bin"
+  fi
+fi
+
+log "Bun: $(/usr/local/bin/bun --version)"
 
 # Pin host key sekali. Tanpa ini, git clone nggak bisa verifikasi identitas
 # server git, jadi deploy key bisa dicuri lewat MITM.
