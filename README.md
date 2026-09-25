@@ -10,10 +10,10 @@ sehari-hari.
 
 ```bash
 # Cepat
-curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/v0.1.1/install.sh | sudo bash
 
 # Aman: baca dulu, baru jalanin
-curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/v0.1.1/install.sh -o install.sh
 less install.sh && sudo bash install.sh
 ```
 
@@ -21,6 +21,33 @@ Buka `http://IP-VPS:2508` buat bikin akun admin.
 
 Cuma Ubuntu/Debian yang didukung. Di distro lain, install script bakal berhenti
 sopan.
+
+### Mau versi tertentu
+
+```bash
+sudo HIKARI_VERSION=v0.1.1 bash install.sh
+```
+
+Kalau dikosongin, dia pakai rilis terbaru.
+
+## Yang Dilakuin `install.sh`
+
+Cek OS → pastiin Docker & git ada → cek port 2508 kosong → bikin user `hikari`
+→ download tarball dari GitHub Releases → pasang Bun ke `/usr/local` → pin host
+key SSH → pasang systemd unit → nyalain service.
+
+Dua hal yang sengaja dilakuin hati-hati:
+
+- **Bun dipasang ke `/usr/local`, bukan `/root/.bun`.** Cara yang gampang
+  (`curl bun.sh/install | bash`) naruh Bun di `/root/.bun` terus di-symlink.
+  Itu gagal: `/root` mode-nya `700`, jadi user `hikari` nggak bisa nembus dan
+  systemd-nya error `203/EXEC` — service-nya crash-loop tanpa henti.
+- **`HIKARI_VERSION` dibaca sebelum `/etc/os-release` di-source.** File itu
+  punya variabel `VERSION` yang isinya versi Ubuntu, dan kalau kebaca duluan,
+  URL download-nya jadi ngaco.
+
+Update = jalanin `install.sh` lagi. **Nggak ada tombol update di panel**
+(nambah attack surface, nggak perlu).
 
 ## Yang Bisa Dilakuin
 
@@ -138,7 +165,14 @@ Ini platform pribadi, bukan produk.
 
 ## Update
 
-Jalanin `install.sh` lagi. Nggak ada tombol update di panel, sengaja.
+Jalanin `install.sh` lagi:
+
+```bash
+sudo HIKARI_VERSION=v0.2.0 bash install.sh
+```
+
+Data kamu di `/var/lib/hikari` nggak disentuh. Nggak ada tombol update di panel,
+sengaja.
 
 ## Jalanin dari Source
 
