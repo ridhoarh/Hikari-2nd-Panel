@@ -25,10 +25,10 @@ sopan.
 ### Mau versi tertentu
 
 ```bash
-sudo HIKARI_VERSION=v0.1.4 bash install.sh
+sudo HIKARI_VERSION=v0.1.5 bash install.sh
 ```
 
-Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.4` dengan tag yang ada di
+Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.5` dengan tag yang ada di
 [halaman Releases](https://github.com/ridhoarh/Hikari-2nd-Panel/releases).
 
 ### Opsi lain
