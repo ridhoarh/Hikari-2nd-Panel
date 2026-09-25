@@ -10,4 +10,4 @@
  * Test di `version.test.ts` mastiin formatnya bener, tapi nggak bisa mastiin
  * angkanya sama dengan tag — itu bagian mengingat, bukan bagian tes.
  */
-export const HIKARI_VERSION = '0.1.5'
+export const HIKARI_VERSION = '0.1.6'

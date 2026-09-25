@@ -100,7 +100,25 @@ Update = jalanin `install.sh` lagi. **Nggak ada tombol update di panel**
 - Backup manual + **terjadwal**, restore dari file, bisa di-download
 - **Terminal web** ke container lewat WebSocket
 - **GitHub App** — clone repo privat + kirim commit status
-- Pemakaian disk di halaman Settings, plus peringatan di 80%
+- Pemakaian disk di halaman Panel, plus peringatan di 80%
+- **Ganti password** dari panel, tanpa perlu sentuh database
+
+## Navigasi
+
+Sidebar-nya bergrup; tiap entri nampilin isi dari **semua** project, jadi
+nggak perlu buka project satu-satu:
+
+| Grup | Isi |
+|---|---|
+| Overview | Ringkasan (app yang perlu dilihat duluan), Aktivitas (riwayat deploy) |
+| Deploy | Applications, Projects |
+| Data | Databases, Storage, Backups |
+| Networking | Domains, Proxy (Caddy), Cloudflare |
+| Sources | GitHub App, Git Push |
+| Settings | Panel (versi, sistem, backup terjadwal), Akun (ganti password) |
+
+Detail app dan project nggak pakai tab lagi — semua bagiannya kebuka sekalian
+dalam satu halaman.
 
 ## Git Push Deploy
 
@@ -115,7 +133,8 @@ Setup sekali di VPS:
 sudo useradd -m -s /usr/bin/git-shell git
 sudo mkdir -p /home/git/.ssh && sudo chmod 700 /home/git/.ssh
 
-# 2. ambil authorized_keys dari Hikari (bikin deploy key dulu di tab Git)
+# 2. ambil authorized_keys dari Hikari (bikin deploy key dulu di halaman
+#    app, bagian Git)
 sudo curl -s http://127.0.0.1:2508/api/git/authorized-keys \
   -H "Cookie: hikari_session=<cookie-kamu>" \
   > /home/git/.ssh/authorized_keys
