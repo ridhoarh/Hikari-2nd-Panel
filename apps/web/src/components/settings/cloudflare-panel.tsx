@@ -78,7 +78,7 @@ export function CloudflarePanel() {
     <div className="space-y-3">
       {status.connected ? (
         <>
-          <p className="text-sm text-green-700">Token-nya jalan.</p>
+          <p className="text-sm text-ok">Token-nya jalan.</p>
           <dl className="space-y-1 text-sm">
             <div className="flex justify-between">
               <dt className="text-ink-muted">Zone</dt>
@@ -147,7 +147,7 @@ export function CloudflarePanel() {
           {hasil.map((h) => (
             <p
               key={h.hostname}
-              className={`text-xs ${h.ok ? 'text-green-700' : 'text-danger'}`}
+              className={`text-xs ${h.ok ? 'text-ok' : 'text-danger'}`}
             >
               {h.ok ? '✓' : '✗'} <span className="font-mono">{h.hostname}</span>
               {h.error ? ` — ${h.error}` : ''}

@@ -53,7 +53,7 @@ export function CreateDatabaseDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="db-dlg"
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/20 px-4"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-8 sm:items-center"
       onClick={onClose}
     >
       <div
@@ -70,7 +70,7 @@ export function CreateDatabaseDialog({
               Database-nya jadi. Password ini <strong>cuma muncul sekali</strong> —
               simpen dulu sebelum tutup.
             </p>
-            <pre className="overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200">
+            <pre className="overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
               {password}
             </pre>
             <div className="flex justify-end pt-2">

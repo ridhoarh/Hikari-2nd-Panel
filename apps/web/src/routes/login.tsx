@@ -46,7 +46,7 @@ function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex h-full max-w-md flex-col justify-center overflow-y-auto px-6">
+    <main className="mx-auto flex h-full w-full max-w-md flex-col justify-center overflow-y-auto px-5 py-8 sm:px-6">
       <h1 className="text-2xl font-semibold">Masuk ke Hikari</h1>
 
       <form onSubmit={submit} className="mt-8 space-y-4">
@@ -58,7 +58,7 @@ function LoginPage() {
             id="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1 w-full rounded-card border border-line bg-surface px-3 py-2 transition-hikari focus:border-brand"
+            className="mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 text-ink placeholder:text-ink-subtle transition-hikari focus:border-brand"
             autoComplete="username"
             required
           />
@@ -73,7 +73,7 @@ function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-card border border-line bg-surface px-3 py-2 transition-hikari focus:border-brand"
+            className="mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 text-ink placeholder:text-ink-subtle transition-hikari focus:border-brand"
             autoComplete="current-password"
             required
           />
@@ -88,7 +88,7 @@ function LoginPage() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-card bg-brand px-4 py-2.5 font-medium text-white transition-hikari hover:bg-brand-hover disabled:opacity-50"
+          className="min-h-touch w-full rounded-card bg-brand px-4 py-2.5 font-medium text-white transition-hikari hover:bg-brand-hover disabled:opacity-50"
         >
           {busy ? 'Masuk...' : 'Masuk'}
         </button>

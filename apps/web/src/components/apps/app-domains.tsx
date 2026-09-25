@@ -122,7 +122,7 @@ export function AppDomains({
             Kalau cuma mau ngakses dari laptop sendiri, pakai SSH tunnel aja. Lebih
             aman karena port-nya nggak kebuka ke internet.
           </p>
-          <pre className="mt-3 overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200">
+          <pre className="mt-3 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
             {tunnelCommand}
           </pre>
         </CardBody>

@@ -52,18 +52,18 @@ export function AppLogs({ appId }: { appId: string }) {
         </p>
       )}
 
-      <div className="max-h-[32rem] overflow-auto rounded-card border border-line bg-neutral-950 p-4">
-        {loading && <p className="text-xs text-neutral-400">Memuat...</p>}
+      <div className="max-h-[32rem] overflow-auto rounded-card border border-line bg-bg p-4">
+        {loading && <p className="text-xs text-ink-subtle">Memuat...</p>}
 
         {!loading && lines.length === 0 && (
-          <p className="text-xs text-neutral-400">Belum ada log.</p>
+          <p className="text-xs text-ink-subtle">Belum ada log.</p>
         )}
 
         {lines.map((line, i) => (
           <p
             key={i}
             className={`whitespace-pre-wrap font-mono text-xs leading-relaxed ${
-              line.stream === 'stderr' ? 'text-red-400' : 'text-neutral-200'
+              line.stream === 'stderr' ? 'text-danger' : 'text-ink-muted'
             }`}
           >
             {line.text}

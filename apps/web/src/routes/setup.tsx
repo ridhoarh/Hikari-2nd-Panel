@@ -50,7 +50,7 @@ function SetupPage() {
   }
 
   return (
-    <main className="mx-auto flex h-full max-w-md flex-col justify-center overflow-y-auto px-6">
+    <main className="mx-auto flex h-full w-full max-w-md flex-col justify-center overflow-y-auto px-5 py-8 sm:px-6">
       <h1 className="text-2xl font-semibold">Selamat datang di Hikari</h1>
       <p className="mt-2 text-sm text-ink-muted">
         Bikin akun admin dulu. Password minimal 6 karakter.
@@ -65,7 +65,7 @@ function SetupPage() {
             id="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1 w-full rounded-card border border-line bg-surface px-3 py-2 transition-hikari focus:border-brand"
+            className="mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 text-ink transition-hikari focus:border-brand"
             autoComplete="username"
             required
           />
@@ -80,7 +80,7 @@ function SetupPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-card border border-line bg-surface px-3 py-2 transition-hikari focus:border-brand"
+            className="mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 text-ink transition-hikari focus:border-brand"
             autoComplete="new-password"
             required
           />
@@ -95,7 +95,7 @@ function SetupPage() {
             type="password"
             value={konfirmasi}
             onChange={(e) => setKonfirmasi(e.target.value)}
-            className="mt-1 w-full rounded-card border border-line bg-surface px-3 py-2 transition-hikari focus:border-brand"
+            className="mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 text-ink transition-hikari focus:border-brand"
             autoComplete="new-password"
             required
           />
@@ -110,7 +110,7 @@ function SetupPage() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-card bg-brand px-4 py-2.5 font-medium text-white transition-hikari hover:bg-brand-hover disabled:opacity-50"
+          className="min-h-touch w-full rounded-card bg-brand px-4 py-2.5 font-medium text-white transition-hikari hover:bg-brand-hover disabled:opacity-50"
         >
           {busy ? 'Menyimpan...' : 'Bikin akun admin'}
         </button>

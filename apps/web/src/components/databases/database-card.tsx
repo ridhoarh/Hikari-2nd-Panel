@@ -205,7 +205,7 @@ export function DatabaseCard({
           <div className="mt-4 space-y-4 border-t border-line pt-4">
             <div>
               <p className="text-xs font-medium text-ink-muted">Connection string</p>
-              <pre className="mt-1 overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200">
+              <pre className="mt-1 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
                 {info.connectionString}
               </pre>
             </div>
@@ -215,7 +215,7 @@ export function DatabaseCard({
                 <p className="text-xs font-medium text-ink-muted">
                   Perintah tunnel (jalanin di laptop kamu)
                 </p>
-                <pre className="mt-1 overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200">
+                <pre className="mt-1 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
                   {info.tunnelCommand}
                 </pre>
               </div>

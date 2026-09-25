@@ -29,6 +29,15 @@ export default {
       borderRadius: {
         card: '12px',
       },
+      screens: {
+        // Mobile-first: default-nya layar sempit. Breakpoint `xs` dipakai buat
+        // HP yang agak lebar (misal layar 400px) sebelum masuk ke `sm`.
+        xs: '400px',
+      },
+      spacing: {
+        // Target sentuh minimum 44px. Dipakai buat tombol di layar sentuh.
+        touch: '2.75rem',
+      },
     },
   },
   plugins: [],

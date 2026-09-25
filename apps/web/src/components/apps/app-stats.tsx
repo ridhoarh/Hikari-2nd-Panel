@@ -36,17 +36,19 @@ export function AppStats({
   const rows = [
     { label: 'CPU', value: `${stats.cpuPercent}%` },
     { label: 'RAM', value: `${stats.memoryUsedMb} / ${stats.memoryLimitMb} MB` },
-    { label: 'Pemakaian RAM', value: `${stats.memoryPercent}%` },
+    { label: 'Pemakaian', value: `${stats.memoryPercent}%` },
   ]
 
   return (
     <Card>
       <CardBody>
-        <dl className="grid grid-cols-3 gap-4">
+        {/* Satu kolom di HP — "2048 / 2048 MB" nggak muat di sepertiga layar
+            sempit, dan angkanya jadi kepotong. */}
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           {rows.map((row) => (
-            <div key={row.label}>
+            <div key={row.label} className="flex items-baseline justify-between gap-3 sm:block">
               <dt className="text-xs text-ink-subtle">{row.label}</dt>
-              <dd className="mt-0.5 font-mono text-sm font-medium">{row.value}</dd>
+              <dd className="tabular font-mono text-sm font-medium">{row.value}</dd>
             </div>
           ))}
         </dl>

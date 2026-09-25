@@ -115,7 +115,10 @@ export function AppTerminal({ appId }: { appId: string }) {
         ref={outRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className="h-96 overflow-auto rounded-card border border-line bg-neutral-950 p-3 font-mono text-xs leading-relaxed text-neutral-200 outline-none focus:border-brand"
+        // Tingginya ikut layar: `55vh` di HP biar tombol di bawahnya tetap
+        // kelihatan, `24rem` di layar besar. `h-96` tetap dulu bikin
+        // terminalnya kepanjangan di HP — halaman jadi harus digeser.
+        className="h-[55vh] overflow-auto rounded-card border border-line bg-bg p-3 font-mono text-xs leading-relaxed text-ink-muted outline-none focus:border-brand sm:h-[24rem]"
       >
         {output || (connected ? '' : 'Klik "Buka terminal" dulu.')}
       </pre>

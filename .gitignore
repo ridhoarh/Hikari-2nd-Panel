@@ -54,3 +54,8 @@ desktop.ini
 debug-*.sh
 *.cookies
 *.tmp
+
+# Keluaran graphify (knowledge graph). Bisa dibangun ulang kapan aja dengan
+# `graphify extract . --code-only`, dan graph.json-nya ratusan KB sampai
+# beberapa MB — nggak perlu masuk git.
+graphify-out/

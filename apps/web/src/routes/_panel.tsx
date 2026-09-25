@@ -21,7 +21,7 @@ function PanelLayout() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-ink-muted">
+      <div className="flex h-full items-center justify-center text-sm text-ink-muted">
         Memuat...
       </div>
     )

@@ -2,31 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Tema: biru gelap, dark-only.
+ *
+ * Nggak ada tema terang dan nggak ada tombol ganti tema — panel ini sering
+ * dibuka malam buat cek app, dan ngurus dua tema nggak sepadan buat panel
+ * satu-orang.
+ *
+ * Formatnya `R G B` (spasi, tanpa koma) karena Tailwind butuh itu buat
+ * opacity modifier (`bg-danger/10`).
+ *
+ * Aturan pemakaian + tabel lengkapnya ada di docs/DESIGN.md. Yang penting:
+ * jangan tulis warna literal di komponen — selalu pakai token ini.
+ */
 :root {
-  /* netral */
-  --bg: 255 255 255;
-  --surface: 255 255 255;
-  --surface-muted: 248 250 252;
-  --border: 226 232 240;
-  --text: 15 23 42;
-  --text-muted: 71 85 105;
-  --text-subtle: 148 163 184;
+  /* Latar — dari paling dalam ke paling terang */
+  --bg: 11 15 26;
+  --surface: 17 24 39;
+  --surface-muted: 22 30 48;
+  --border: 34 45 68;
 
-  /* brand — light blue */
-  --brand: 14 165 233;
-  --brand-hover: 2 132 199;
-  --brand-soft: 224 242 254;
-  --brand-text: 3 105 161;
+  /* Teks — tiga tingkat, dipilih biar lolos kontras 4.5:1 di atas latar */
+  --text: 226 232 240;
+  --text-muted: 148 163 184;
+  --text-subtle: 116 134 159;
 
-  /* status — jangan dicampur sama brand */
-  --ok: 16 185 129;
-  --warn: 245 158 11;
-  --danger: 239 68 68;
-  --idle: 148 163 184;
+  /* Aksen — biru */
+  --brand: 56 149 250;
+  --brand-hover: 96 175 255;
+  --brand-soft: 30 58 95;
+  --brand-text: 125 190 255;
+
+  /* Status — JANGAN dipakai buat aksen */
+  --ok: 52 211 153;
+  --warn: 251 191 36;
+  --danger: 248 113 113;
+  --idle: 100 116 139;
 }
 
 html {
-  color-scheme: light;
+  color-scheme: dark;
+}
+
+/*
+ * Tinggi dikunci ke layar, dan cuma isinya yang di-scroll.
+ *
+ * Sebelumnya di sini `min-h-screen`, dan AppShell juga `min-h-screen`. Dobel
+ * begitu bikin tinggi halaman ikut memanjang bareng konten — padahal sidebar
+ * dan header-nya udah penuh — jadi scrollbar halaman muncul walau nggak ada
+ * yang perlu di-scroll, dan di layar lebar kelihatan kayak ada ruang kosong
+ * yang bisa digeser.
+ */
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
@@ -34,6 +64,8 @@ body {
   color: rgb(var(--text));
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Jangan biarkan scroll nyeret halaman pas sidebar/panel udah di ujung. */
+  overscroll-behavior: none;
 }
 
 /* semua transisi pakai kurva ini, jangan linear/ease-in-out */
@@ -41,9 +73,45 @@ body {
   transition: all 400ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* Numerik rata biar angka yang berubah nggak goyang */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
 /* fokus keyboard harus keliatan */
 :focus-visible {
   outline: 2px solid rgb(var(--brand));
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* Scrollbar gelap — default browser terlalu terang buat tema ini */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--text-subtle));
+}
+
+/* Hormati preferensi user yang nggak mau animasi */
+@media (prefers-reduced-motion: reduce) {
+  .transition-hikari {
+    transition: none;
+  }
 }

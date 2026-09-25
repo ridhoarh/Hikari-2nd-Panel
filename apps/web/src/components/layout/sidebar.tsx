@@ -71,7 +71,7 @@ export function Sidebar({ username }: { username: string }) {
   }
 
   const itemClass =
-    'block rounded-card px-3 py-1.5 text-sm text-ink-muted transition-hikari hover:bg-surface hover:text-ink'
+    'flex min-h-touch items-center rounded-card px-3 text-sm text-ink-muted transition-hikari hover:bg-surface hover:text-ink md:min-h-0 md:py-1.5'
   const activeClass = 'bg-brand-soft text-brand-text font-medium'
 
   return (
@@ -79,7 +79,7 @@ export function Sidebar({ username }: { username: string }) {
       aria-label="Navigasi utama"
       // Sidebar punya scroll sendiri; tingginya penuh dan nggak ikut tinggi
       // konten. `overscroll-contain` biar scroll di sini nggak nyeret halaman.
-      className="flex w-60 shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-line bg-muted px-3 py-4"
+      className="flex h-full w-60 shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-line bg-muted px-3 py-4"
     >
       <div className="shrink-0 px-3 pb-5">
         <span className="text-base font-semibold">Hikari</span>

@@ -55,12 +55,12 @@ export function AppGit({ appId }: { appId: string }) {
               <p className="mt-3 text-xs font-medium text-ink-muted">
                 Jalanin di folder repo kamu
               </p>
-              <pre className="mt-1 overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200">
+              <pre className="mt-1 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
                 {info.commands.join('\n')}
               </pre>
 
               <p className="mt-3 text-xs font-medium text-ink-muted">Remote</p>
-              <pre className="mt-1 overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200">
+              <pre className="mt-1 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
                 {info.sshUrl}
               </pre>
             </>
@@ -95,7 +95,7 @@ export function AppGit({ appId }: { appId: string }) {
               ini udah dikunci ke <span className="font-mono">git-shell</span>, jadi
               cuma bisa dipakai buat git — nggak bisa dapet shell.
             </p>
-            <pre className="mt-2 overflow-x-auto rounded-card bg-neutral-950 px-3 py-2 font-mono text-[10px] text-neutral-200">
+            <pre className="mt-2 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-[10px] text-ink-muted">
               {info.publicKey}
             </pre>
           </CardBody>

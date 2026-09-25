@@ -70,7 +70,7 @@ export function GithubPanel() {
     <div className="space-y-3">
       {status.connected ? (
         <>
-          <p className="text-sm text-green-700">
+          <p className="text-sm text-ok">
             Nyambung sebagai App ID <span className="font-mono">{status.appId}</span>.
           </p>
 
@@ -132,7 +132,7 @@ export function GithubPanel() {
                 className="mt-1 block w-full text-xs"
               />
               {privateKey && (
-                <p className="mt-1 text-xs text-green-700">
+                <p className="mt-1 text-xs text-ok">
                   File-nya kebaca ({privateKey.length} karakter).
                 </p>
               )}
