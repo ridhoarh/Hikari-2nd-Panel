@@ -118,6 +118,25 @@ export function DatabaseCard({
     await load()
   }
 
+  /**
+   * Hapus satu file backup.
+   *
+   * Nggak ada konfirmasi, karena ini cuma file backup — bukan data yang
+   * lagi dipakai. Yang penting file fisiknya ikut kehapus, dan itu urusan
+   * servernya.
+   */
+  async function hapusBackup(id: string) {
+    setError(null)
+    setPesan(null)
+    const res = await api.del(`/backups/${id}`)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    setPesan('Backup dihapus.')
+    await load()
+  }
+
   async function hapusDb() {
     setBusy('hapus')
     setError(null)
@@ -305,16 +324,30 @@ export function DatabaseCard({
                   {backups.map((b) => (
                     <div
                       key={b.id}
-                      className="flex items-center justify-between gap-2 text-xs"
+                      className="flex flex-wrap items-center justify-between gap-2 text-xs"
                     >
-                      <span className="font-mono text-ink-subtle">{b.filename}</span>
+                      <span className="truncate font-mono text-ink-subtle">
+                        {b.filename}
+                      </span>
                       <span className="text-ink-muted">{formatSize(b.size_bytes)}</span>
-                      <a
-                        href={`/api/backups/${b.id}/download`}
-                        className="text-brand-text hover:underline"
-                      >
-                        Download
-                      </a>
+                      <span className="flex gap-3">
+                        <a
+                          href={`/api/backups/${b.id}/download`}
+                          className="text-brand-text hover:underline"
+                        >
+                          Download
+                        </a>
+                        {/* Endpoint hapusnya udah ada dari dulu, tombolnya
+                            yang kelupaan — jadi file backup cuma bisa
+                            numpuk sampai dipangkas otomatis. */}
+                        <button
+                          type="button"
+                          onClick={() => hapusBackup(b.id)}
+                          className="text-danger transition-hikari hover:underline"
+                        >
+                          Hapus
+                        </button>
+                      </span>
                     </div>
                   ))}
                 </div>

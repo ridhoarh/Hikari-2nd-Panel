@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import type { BucketRecord } from '../../lib/types'
 import { Button } from '../ui/button'
-import { Card, CardBody } from '../ui/card'
+import { Card, CardBody, CodeBlock } from '../ui/card'
 
 export function BucketList({ projectId }: { projectId: string }) {
   const [buckets, setBuckets] = useState<BucketRecord[]>([])
@@ -10,6 +10,7 @@ export function BucketList({ projectId }: { projectId: string }) {
   const [isPublic, setIsPublic] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [minioBusy, setMinioBusy] = useState<string | null>(null)
   const [kredensial, setKredensial] = useState<{
     name: string
     accessKey: string
@@ -30,15 +31,44 @@ export function BucketList({ projectId }: { projectId: string }) {
   }, [load])
 
   async function nyalainMinio() {
-    setBusy(true)
+    setMinioBusy('start')
     setError(null)
     const res = await api.post<{ endpoint: string }>('/storage/start')
-    setBusy(false)
+    setMinioBusy(null)
     if (!res.ok) {
       setError(res.error)
       return
     }
     setMinioJalan(true)
+  }
+
+  /** Matiin MinIO. Container-nya berhenti, tapi datanya tetap ada di volume. */
+  async function matiinMinio() {
+    setMinioBusy('stop')
+    setError(null)
+    const res = await api.post('/storage/stop')
+    setMinioBusy(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    setMinioJalan(false)
+  }
+
+  /**
+   * Ubah bucket jadi publik atau privat.
+   *
+   * Endpoint-nya udah ada dari dulu, tapi tombolnya kelupaan dibikin — jadi
+   * salah pilih pas bikin berarti harus hapus dan bikin ulang.
+   */
+  async function ubahAkses(b: BucketRecord) {
+    const jadiPublic = b.is_public === 0
+    const res = await api.patch(`/buckets/${b.id}`, { isPublic: jadiPublic })
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await load()
   }
 
   async function bikinBucket(e: React.FormEvent) {
@@ -74,22 +104,38 @@ export function BucketList({ projectId }: { projectId: string }) {
   }
 
   const inputClass =
-    'mt-1 w-full rounded-card border border-line px-3 py-2 transition-hikari focus:border-brand'
+    'mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 text-ink transition-hikari focus:border-brand'
 
   return (
     <div className="space-y-4">
       <Card>
         <CardBody>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium">MinIO</p>
               <p className="mt-0.5 text-xs text-ink-subtle">
                 Storage S3-compatible buat file. Volume-nya awet.
               </p>
             </div>
-            <Button variant="ghost" onClick={nyalainMinio} disabled={busy}>
-              {busy ? 'Nyalain...' : minioJalan ? 'Nyalain ulang' : 'Nyalain MinIO'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={nyalainMinio} disabled={minioBusy !== null}>
+                {minioBusy === 'start'
+                  ? 'Nyalain...'
+                  : minioJalan
+                    ? 'Nyalain ulang'
+                    : 'Nyalain MinIO'}
+              </Button>
+              {/* Cuma ditampilin kalau MinIO-nya emang lagi jalan. */}
+              {minioJalan && (
+                <Button
+                  variant="ghost"
+                  onClick={matiinMinio}
+                  disabled={minioBusy !== null}
+                >
+                  {minioBusy === 'stop' ? 'Matiin...' : 'Matiin'}
+                </Button>
+              )}
+            </div>
           </div>
         </CardBody>
       </Card>
@@ -116,6 +162,7 @@ export function BucketList({ projectId }: { projectId: string }) {
                 type="checkbox"
                 checked={isPublic}
                 onChange={(e) => setIsPublic(e.target.checked)}
+                className="h-4 w-4"
               />
               Buka endpoint S3-nya ke internet
             </label>
@@ -167,16 +214,25 @@ export function BucketList({ projectId }: { projectId: string }) {
           {buckets.map((b) => (
             <Card key={b.id}>
               <CardBody>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-mono text-sm">{b.name}</p>
-                    <p className="mt-0.5 text-xs text-ink-subtle">
+                    <p className="truncate font-mono text-sm">{b.name}</p>
+                    <p
+                      className={`mt-0.5 text-xs ${
+                        b.is_public === 1 ? 'text-warn' : 'text-ink-subtle'
+                      }`}
+                    >
                       {b.is_public === 1 ? 'Endpoint publik' : 'Internal'}
                     </p>
                   </div>
-                  <Button variant="ghost" onClick={() => hapus(b.id)}>
-                    Hapus
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={() => ubahAkses(b)}>
+                      {b.is_public === 1 ? 'Jadiin privat' : 'Jadiin publik'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => hapus(b.id)}>
+                      Hapus
+                    </Button>
+                  </div>
                 </div>
               </CardBody>
             </Card>

@@ -15,6 +15,8 @@ import { AppTerminal } from '../components/apps/app-terminal'
 import { AppEnv } from '../components/apps/app-env'
 import { AppDomains } from '../components/apps/app-domains'
 import { AppGit } from '../components/apps/app-git'
+import { AppWebhook } from '../components/apps/app-webhook'
+import { AppDeployKey } from '../components/apps/app-deploy-key'
 
 export const Route = createFileRoute('/_panel/apps/$appId')({ component: AppDetailPage })
 
@@ -228,6 +230,26 @@ function AppDetailPage() {
               <AppGit appId={appId} />
             </CardBody>
           </Card>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Webhook GitHub</h2>
+              </CardHeader>
+              <CardBody>
+                <AppWebhook appId={appId} />
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Deploy key</h2>
+              </CardHeader>
+              <CardBody>
+                <AppDeployKey appId={appId} />
+              </CardBody>
+            </Card>
+          </div>
         </div>
       )}
     </AppShell>

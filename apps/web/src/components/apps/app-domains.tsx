@@ -2,12 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import type { Domain } from '../../lib/types'
 import { Button } from '../ui/button'
-import { Card, CardBody } from '../ui/card'
+import { Card, CardBody, CodeBlock } from '../ui/card'
 
 const TLS_LABEL: Record<Domain['tls_status'], string> = {
   pending: 'Nunggu sertifikat',
   active: 'HTTPS aktif',
   failed: 'Gagal',
+}
+
+const TLS_CLASS: Record<Domain['tls_status'], string> = {
+  pending: 'text-warn',
+  active: 'text-ok',
+  failed: 'text-danger',
 }
 
 export function AppDomains({
@@ -21,6 +27,8 @@ export function AppDomains({
   const [hostname, setHostname] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [cekId, setCekId] = useState<string | null>(null)
+  const [pesan, setPesan] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await api.get<{ domains: Domain[] }>(`/apps/${appId}/domains`)
@@ -53,6 +61,29 @@ export function AppDomains({
     await load()
   }
 
+  /**
+   * Cek status TLS sekarang, jangan nunggu sinkronisasi otomatis.
+   *
+   * Sertifikat Let's Encrypt bisa keluar beberapa menit setelah domainnya
+   * ditambahin. Tombol ini bikin nggak perlu nebak-nebak "udah jadi belum".
+   */
+  async function cekTls(id: string) {
+    setCekId(id)
+    setPesan(null)
+    const res = await api.post<{ tlsStatus: Domain['tls_status'] }>(
+      `/apps/${appId}/domains/${id}/check`
+    )
+    setCekId(null)
+
+    if (!res.ok) {
+      setPesan(res.error)
+      return
+    }
+
+    setPesan(`Status TLS: ${TLS_LABEL[res.data?.tlsStatus ?? 'pending']}`)
+    await load()
+  }
+
   const tunnelCommand = `ssh -L ${containerPort}:localhost:${containerPort} user@ip-vps-kamu`
 
   return (
@@ -69,7 +100,7 @@ export function AppDomains({
                 value={hostname}
                 onChange={(e) => setHostname(e.target.value)}
                 placeholder="app.contoh.com"
-                className="mt-1 w-full rounded-card border border-line px-3 py-2 font-mono text-sm transition-hikari focus:border-brand"
+                className="mt-1 min-h-touch w-full rounded-card border border-line bg-surface px-3 py-2 font-mono text-sm text-ink transition-hikari focus:border-brand"
                 required
               />
               <p className="mt-1 text-xs text-ink-subtle">
@@ -91,6 +122,10 @@ export function AppDomains({
         </CardBody>
       </Card>
 
+      {pesan && (
+        <p className="rounded-card bg-muted px-3 py-2 text-xs text-ink-muted">{pesan}</p>
+      )}
+
       {domains.length === 0 ? (
         <p className="text-sm text-ink-muted">Belum ada domain.</p>
       ) : (
@@ -98,16 +133,25 @@ export function AppDomains({
           {domains.map((d) => (
             <Card key={d.id}>
               <CardBody>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-mono text-sm">{d.hostname}</p>
-                    <p className="mt-0.5 text-xs text-ink-subtle">
+                    <p className="truncate font-mono text-sm">{d.hostname}</p>
+                    <p className={`mt-0.5 text-xs ${TLS_CLASS[d.tls_status]}`}>
                       {TLS_LABEL[d.tls_status]}
                     </p>
                   </div>
-                  <Button variant="ghost" onClick={() => remove(d.id)}>
-                    Hapus
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => cekTls(d.id)}
+                      disabled={cekId === d.id}
+                    >
+                      {cekId === d.id ? 'Ngecek...' : 'Cek TLS'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => remove(d.id)}>
+                      Hapus
+                    </Button>
+                  </div>
                 </div>
               </CardBody>
             </Card>
@@ -122,9 +166,7 @@ export function AppDomains({
             Kalau cuma mau ngakses dari laptop sendiri, pakai SSH tunnel aja. Lebih
             aman karena port-nya nggak kebuka ke internet.
           </p>
-          <pre className="mt-3 overflow-x-auto rounded-card bg-bg px-3 py-2 font-mono text-xs text-ink-muted">
-            {tunnelCommand}
-          </pre>
+          <CodeBlock className="mt-3">{tunnelCommand}</CodeBlock>
         </CardBody>
       </Card>
     </div>
