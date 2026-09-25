@@ -35,6 +35,7 @@ import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
 import { createGitPushRoutes, setupRepoForApp } from './git-push/routes'
 import { createCloudflareRoutes } from './cloudflare/routes'
 import { createGithubRoutes } from './github/routes'
+import { createActivityRoute, createOverviewRoutes } from './routes/overview'
 import { listApps } from './repositories/apps'
 import { mountStatic } from './static'
 
@@ -188,6 +189,15 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
   )
 
   // --- Semua sisanya butuh login --------------------------------------
+  //
+  // Daftar prefix di bawah ini HARUS lengkap: apa pun yang nggak kecover di
+  // sini bisa diakses tanpa login. Ini bukan teori — `/api/settings` pernah
+  // kelewat, dan itu bikin versi Hikari, path data, pemakaian disk, dan
+  // status Docker kebaca siapa pun yang tau URL-nya.
+  //
+  // Jadi tiap nambah route baru di file routes/, cek daftar ini juga. Tes
+  // di routes/overview.test.ts ngunci endpoint daftar; buat yang lain, ini
+  // bagian mengingat — bukan bagian tes.
   const auth = requireAuth(db, cryptoKey)
   app.use('/api/projects', auth)
   app.use('/api/projects/*', auth)
@@ -199,6 +209,13 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
   app.use('/api/git/*', auth)
   app.use('/api/cloudflare/*', auth)
   app.use('/api/github/*', auth)
+  app.use('/api/settings', auth)
+  app.use('/api/backup-schedule', auth)
+  app.use('/api/backup-schedule/*', auth)
+  // Daftar lintas project buat halaman datar di sidebar.
+  app.use('/api/applications', auth)
+  app.use('/api/domains', auth)
+  app.use('/api/activity', auth)
   // CATATAN: /api/git-push/* SENGAJA nggak lewat requireAuth. Yang manggil
   // itu hook post-receive dari shell, dan dia nggak punya cookie. Dijaga
   // pakai push-secret per app.
@@ -228,7 +245,7 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
   app.route('/api', createWebhookInfoRoute(db))
   app.route(
     '/api',
-    createSettingsRoutes({ db, dataDir, onSyncCaddy: syncCaddySekarang })
+    createSettingsRoutes({ db, dataDir, panelPort: config.port, onSyncCaddy: syncCaddySekarang })
   )
   app.route(
     '/api',
@@ -276,6 +293,11 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
     })
   )
   app.route('/api', createGithubRoutes({ db, cryptoKey }))
+
+  // Daftar lintas project buat halaman datar di sidebar (Applications,
+  // Databases, Storage, Domains, Backups, Aktivitas).
+  app.route('/api', createOverviewRoutes({ db, dataDir }))
+  app.route('/api', createActivityRoute({ db, dataDir }))
 
   const gitApiUrl = `http://127.0.0.1:${config.port}`
   app.route(
