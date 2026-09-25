@@ -25,10 +25,10 @@ sopan.
 ### Mau versi tertentu
 
 ```bash
-sudo HIKARI_VERSION=v0.1.2 bash install.sh
+sudo HIKARI_VERSION=v0.1.4 bash install.sh
 ```
 
-Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.2` dengan tag yang ada di
+Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.4` dengan tag yang ada di
 [halaman Releases](https://github.com/ridhoarh/Hikari-2nd-Panel/releases).
 
 ### Opsi lain
@@ -37,8 +37,9 @@ Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.2` dengan tag yang ada di
 # Port panel (default 2508)
 sudo HIKARI_PORT=8080 bash install.sh
 
-# IP publik VPS, buat nampilin connection string database dari luar
-# (kalau kosong, ditebak dari `hostname -I`)
+# IP publik VPS, buat nampilin connection string database dari luar.
+# Kalau kosong, dideteksi otomatis: ditanya ke layanan luar dulu, jadi VPS
+# di belakang NAT (Oracle/GCP/AWS) tetap dapet IP publik yang bener.
 sudo HIKARI_VPS_IP=203.0.113.10 bash install.sh
 
 # Email buat pendaftaran Let's Encrypt
@@ -70,6 +71,10 @@ Beberapa hal yang sengaja dilakuin hati-hati:
   Paket Caddy nyimpennya sebagai `root:root` 644, jadi tanpa langkah ini tiap
   sinkronisasi gagal `EACCES: permission denied` — dan gejalanya baru kelihatan
   saat domainnya dicoba.
+- **`HIKARI_VPS_IP` dideteksi lewat layanan luar, bukan `hostname -I`.** Di VPS
+  yang di belakang NAT, `hostname -I` cuma mengembalikan IP privat, jadi
+  connection string database-nya menunjuk alamat yang nggak bisa diakses dari
+  luar. Kalau jaringan keluar diblokir, baru jatuh ke `hostname -I`.
 
 Panel cuma jalan sebagai user `hikari`; akses Docker-nya lewat
 `SupplementaryGroups=docker` di unit systemd. Tambahin `hikari` ke grup `docker`
