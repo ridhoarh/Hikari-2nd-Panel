@@ -4,7 +4,22 @@ PaaS pribadi buat VPS sendiri. Sambungin repo GitHub, Hikari yang build, yang
 jalanin, yang kasih domain plus HTTPS otomatis.
 
 Bukan PaaS multi-tenant. Bukan klon Coolify. Ini versi kecil yang dipakai
-sehari-hari.
+sehari-hari. Panelnya bertema biru gelap dan jalan enak dari HP.
+
+## Dokumen
+
+Buat yang mau ikut ngoprek (manusia atau agen AI):
+
+| Dokumen | Isi |
+|---|---|
+| [AGENTS.md](docs/AGENTS.md) | Aturan wajib nulis kode |
+| [PRD.md](docs/PRD.md) | Fitur dan user story |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Peta folder + skema database |
+| [DESIGN.md](docs/DESIGN.md) | Token warna, tipografi, aturan tampilan |
+| [SECURITY.md](docs/SECURITY.md) | Protokol perlindungan |
+| [TESTING.md](docs/TESTING.md) | Cara nulis tes + skrip verifikasi |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Langkah rilis dan variabel environment |
+| [TASK_INSTRUCTION.md](docs/TASK_INSTRUCTION.md) | Lembar kerja bertahap |
 
 ## Install
 
