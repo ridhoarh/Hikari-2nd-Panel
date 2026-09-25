@@ -33,7 +33,7 @@ jobs:
       # dijalanin.
       - name: Cek file yang mau dibungkus ada semua
         run: |
-          for f in apps package.json tsconfig.json install.sh README.md; do
+          for f in apps docs package.json tsconfig.json install.sh README.md; do
             if [ ! -e "$f" ]; then
               echo "::error::$f nggak ada, tarball-nya bakal gagal"
               exit 1
@@ -41,13 +41,16 @@ jobs:
           done
 
       - run: bun install --production
-      - run: tar -czf hikari.tar.gz apps package.json tsconfig.json node_modules install.sh README.md
+      - run: tar -czf hikari.tar.gz apps docs package.json tsconfig.json node_modules install.sh README.md
 
       - name: Verifikasi isi tarball
         run: |
           echo "=== isi tarball ==="
           tar -tzf hikari.tar.gz | head -20
-          for f in apps/server/src/index.ts apps/web/dist/index.html install.sh package.json; do
+          # `docs/` ikut dicek: dulu dia kelewat dari daftar tar, jadi panduan
+          # yang dimaksud buat pengguna nggak pernah sampai ke instalasinya —
+          # dan nggak ada yang sadar sampai diperiksa manual di VPS.
+          for f in apps/server/src/index.ts apps/web/dist/index.html install.sh package.json docs/AGENTS.md docs/ARCHITECTURE.md; do
             if ! tar -tzf hikari.tar.gz | grep -qx "$f"; then
               echo "::error::$f nggak ada di dalam tarball"
               exit 1

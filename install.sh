@@ -357,6 +357,7 @@ IP="${VPS_IP:-}"
 log "Selesai."
 log "Panel: http://${IP:-IP-VPS-KAMU}:${PORT}"
 log "DB:    /var/lib/hikari"
+log "Dok:   ${INSTALL_DIR}/docs"
 
 if [ -n "${IP}" ]; then
   log "Connection string publik bakal pakai IP ${IP}."
