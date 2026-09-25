@@ -121,6 +121,81 @@ describe('GET /api/auth/me', () => {
   })
 })
 
+describe('POST /api/auth/password', () => {
+  async function loginCookie(a: ReturnType<typeof createApp>, password = 'passwordkuat123') {
+    const login = await a.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password }),
+    })
+    return login.headers.get('set-cookie')!.split(';')[0]
+  }
+
+  test('401 kalau nggak ada cookie', async () => {
+    const res = await app().request('/api/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'x', newPassword: 'y' }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  test('ganti password, terus bisa login pakai yang baru', async () => {
+    const a = app()
+    await setup(a)
+    const cookie = await loginCookie(a)
+
+    const ganti = await a.request('/api/auth/password', {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'passwordkuat123', newPassword: 'passwordbaru456' }),
+    })
+    expect(ganti.status).toBe(200)
+
+    const loginBaru = await a.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'passwordbaru456' }),
+    })
+    expect(loginBaru.status).toBe(200)
+  })
+
+  test('password lama salah ditolak, password-nya nggak berubah', async () => {
+    const a = app()
+    await setup(a)
+    const cookie = await loginCookie(a)
+
+    const ganti = await a.request('/api/auth/password', {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'salahsekali', newPassword: 'passwordbaru456' }),
+    })
+    expect(ganti.status).toBe(401)
+
+    // Yang lama harus tetep jalan — kalau nggak, password-nya keburu keganti
+    // padahal permintaannya ditolak.
+    const loginLama = await a.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'passwordkuat123' }),
+    })
+    expect(loginLama.status).toBe(200)
+  })
+
+  test('password baru yang kekecilan ditolak', async () => {
+    const a = app()
+    await setup(a)
+    const cookie = await loginCookie(a)
+
+    const ganti = await a.request('/api/auth/password', {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'passwordkuat123', newPassword: 'abc' }),
+    })
+    expect(ganti.status).toBe(400)
+  })
+})
+
 describe('batas percobaan login', () => {
   test('nolak setelah 5 percobaan gagal', async () => {
     const a = app()

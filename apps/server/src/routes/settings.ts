@@ -50,6 +50,7 @@ async function readDiskInfo(path: string): Promise<DiskInfo | null> {
 export type SettingsDeps = {
   db: Database
   dataDir: string
+  panelPort: number
   onSyncCaddy: () => void
 }
 
@@ -62,6 +63,10 @@ export function createSettingsRoutes(deps: SettingsDeps): Hono {
     return c.json({
       version: HIKARI_VERSION,
       dataDir: deps.dataDir,
+      // Port dikirim dari konfigurasi, bukan ditulis tetap di frontend —
+      // halaman Settings dulu nampilin angka 2508 yang nggak ikut berubah
+      // kalau HIKARI_PORT diset lain.
+      panelPort: deps.panelPort,
       dockerAvailable,
       ramUsedMb: Math.round((totalmem() - freemem()) / MB),
       ramTotalMb: Math.round(totalmem() / MB),

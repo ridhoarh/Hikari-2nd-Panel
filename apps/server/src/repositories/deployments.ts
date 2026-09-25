@@ -63,6 +63,19 @@ export function listDeployments(
     .all(appId, limit) as Deployment[]
 }
 
+/**
+ * Deployment terbaru dari SEMUA app — dipakai halaman Aktivitas.
+ *
+ * `listDeployments` cuma bisa per-app, jadi kalau halaman itu manggil
+ * satu-satu, jumlah query-nya ikut jumlah app. Query langsung ke tabel
+ * lebih murah dan hasilnya udah keurut dari yang terbaru.
+ */
+export function listRecentDeployments(db: Database, limit = 50): Deployment[] {
+  return db
+    .query('SELECT * FROM deployments ORDER BY created_at DESC, id DESC LIMIT ?')
+    .all(limit) as Deployment[]
+}
+
 export function setDeploymentStatus(
   db: Database,
   id: string,

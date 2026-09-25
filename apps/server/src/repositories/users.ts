@@ -33,3 +33,13 @@ export function createUser(db: Database, username: string, passwordHash: string)
   ).run(user.id, user.username, user.password_hash, user.created_at)
   return user
 }
+
+/**
+ * Ganti password user yang udah ada.
+ *
+ * Hash-nya dibikin di route (butuh async), jadi di sini cuma nyimpen — biar
+ * repository ini tetap sinkron dan nggak perlu nunggu argon2.
+ */
+export function setUserPassword(db: Database, id: string, passwordHash: string): void {
+  db.query('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id)
+}

@@ -10,6 +10,7 @@ import {
   createUser,
   findUserById,
   findUserByUsername,
+  setUserPassword,
 } from '../repositories/users'
 
 const setupSchema = z.object({
@@ -20,6 +21,11 @@ const setupSchema = z.object({
 const loginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+})
+
+const gantiPasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(1),
 })
 
 export function createAuthRoutes(
@@ -85,6 +91,42 @@ export function createAuthRoutes(
 
   router.post('/auth/logout', (c) => {
     deleteCookie(c, SESSION_COOKIE, { path: '/' })
+    return c.json({ ok: true })
+  })
+
+  /**
+   * Ganti password sendiri.
+   *
+   * Password lama WAJIB diketik ulang. Tanpa itu, sesi yang kecolongan
+   * (misal cookie-nya ketinggalan di komputer warnet) bisa dipakai buat
+   * ngunci pemilik aslinya keluar dari akunnya sendiri.
+   */
+  router.post('/auth/password', async (c) => {
+    const token = getCookie(c, SESSION_COOKIE)
+    if (!token) return c.json({ error: 'Belum login' }, 401)
+
+    const session = verifySession(token, cryptoKey)
+    if (!session) return c.json({ error: 'Session nggak valid' }, 401)
+
+    const user = findUserById(db, session.userId)
+    if (!user) return c.json({ error: 'Belum login' }, 401)
+
+    const parsed = gantiPasswordSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) {
+      return c.json({ error: 'Password lama dan baru wajib diisi' }, 400)
+    }
+
+    const cocok = await verifyPassword(parsed.data.currentPassword, user.password_hash)
+    if (!cocok) {
+      return c.json({ error: 'Password lama salah' }, 401)
+    }
+
+    const strength = checkPasswordStrength(parsed.data.newPassword)
+    if (!strength.ok) {
+      return c.json({ error: strength.reason }, 400)
+    }
+
+    setUserPassword(db, user.id, await hashPassword(parsed.data.newPassword))
     return c.json({ ok: true })
   })
 
