@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { api } from '../lib/api'
+import { useSetupGate } from '../hooks/use-setup-gate'
 
 export const Route = createFileRoute('/setup')({ component: SetupPage })
 
 function SetupPage() {
   const navigate = useNavigate()
+  const checking = useSetupGate('setup')
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [konfirmasi, setKonfirmasi] = useState('')
@@ -36,6 +38,15 @@ function SetupPage() {
     } else {
       await navigate({ to: '/login' })
     }
+  }
+
+  // Setup-nya udah pernah dilakuin: jangan sempetin nampilin form-nya.
+  if (checking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-sm text-ink-muted">
+        Memuat...
+      </main>
+    )
   }
 
   return (

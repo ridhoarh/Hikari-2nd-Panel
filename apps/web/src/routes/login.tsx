@@ -1,15 +1,26 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { useSetupGate } from '../hooks/use-setup-gate'
 
 export const Route = createFileRoute('/login')({ component: LoginPage })
 
 function LoginPage() {
   const navigate = useNavigate()
+  const checking = useSetupGate('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Kalau ternyata udah punya sesi yang sah, langsung masuk aja — daripada
+  // nampilin form login ke orang yang sebenernya udah login.
+  useEffect(() => {
+    void (async () => {
+      const me = await api.get<{ username: string }>('/auth/me')
+      if (me.ok) void navigate({ to: '/' })
+    })()
+  }, [navigate])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,6 +35,14 @@ function LoginPage() {
       return
     }
     await navigate({ to: '/' })
+  }
+
+  if (checking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-sm text-ink-muted">
+        Memuat...
+      </main>
+    )
   }
 
   return (
