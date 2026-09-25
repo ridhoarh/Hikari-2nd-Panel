@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
 
+# Tanpa ini, GITHUB_TOKEN-nya cuma punya izin baca, dan upload ke
+# Releases gagal dengan "Resource not accessible by integration".
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
