@@ -25,19 +25,34 @@ sopan.
 ### Mau versi tertentu
 
 ```bash
-sudo HIKARI_VERSION=v0.1.1 bash install.sh
+sudo HIKARI_VERSION=v0.1.2 bash install.sh
 ```
 
-Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.1` dengan tag yang ada di
+Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.2` dengan tag yang ada di
 [halaman Releases](https://github.com/ridhoarh/Hikari-2nd-Panel/releases).
+
+### Opsi lain
+
+```bash
+# Port panel (default 2508)
+sudo HIKARI_PORT=8080 bash install.sh
+
+# IP publik VPS, buat nampilin connection string database dari luar
+# (kalau kosong, ditebak dari `hostname -I`)
+sudo HIKARI_VPS_IP=203.0.113.10 bash install.sh
+
+# Email buat pendaftaran Let's Encrypt
+sudo HIKARI_ACME_EMAIL=kamu@contoh.com bash install.sh
+```
 
 ## Yang Dilakuin `install.sh`
 
-Cek OS → pastiin Docker & git ada → cek port 2508 kosong → bikin user `hikari`
-→ download tarball dari GitHub Releases → pasang Bun ke `/usr/local` → pin host
-key SSH → pasang systemd unit → nyalain service.
+Cek OS → pastiin Docker, git & openssl ada → cek port 2508 kosong → bikin user
+`hikari` → tambahin ke grup `docker` → download tarball dari GitHub Releases →
+pasang Bun ke `/usr/local` → pasang Caddy (kalau belum ada) → siapin Caddyfile &
+hak aksesnya → pin host key SSH → pasang systemd unit → nyalain service.
 
-Dua hal yang sengaja dilakuin hati-hati:
+Beberapa hal yang sengaja dilakuin hati-hati:
 
 - **Bun dipasang ke `/usr/local`, bukan `/root/.bun`.** Cara yang gampang
   (`curl bun.sh/install | bash`) naruh Bun di `/root/.bun` terus di-symlink.
@@ -46,6 +61,19 @@ Dua hal yang sengaja dilakuin hati-hati:
 - **`HIKARI_VERSION` dibaca sebelum `/etc/os-release` di-source.** File itu
   punya variabel `VERSION` yang isinya versi Ubuntu, dan kalau kebaca duluan,
   URL download-nya jadi ngaco.
+- **Caddy dipasang dari repo resmi Cloudsmith**, bukan dari apt default Ubuntu
+  (versi di sana terlalu tua). Kalau port 80/443 udah kepakai proses lain
+  (misal Dokploy), install-nya tetap jalan tapi dikasih peringatan: fitur domain
+  nggak bakal aktif sampai port-nya bebas.
+- **`/etc/caddy/Caddyfile` di-`chown root:hikari` + `chmod 664`.** Panel nulis
+  ulang file ini tiap ada domain baru, dan dia jalan sebagai user `hikari`.
+  Paket Caddy nyimpennya sebagai `root:root` 644, jadi tanpa langkah ini tiap
+  sinkronisasi gagal `EACCES: permission denied` — dan gejalanya baru kelihatan
+  saat domainnya dicoba.
+
+Panel cuma jalan sebagai user `hikari`; akses Docker-nya lewat
+`SupplementaryGroups=docker` di unit systemd. Tambahin `hikari` ke grup `docker`
+juga biar `docker ps` manual nggak `permission denied` waktu lagi nge-debug.
 
 Update = jalanin `install.sh` lagi. **Nggak ada tombol update di panel**
 (nambah attack surface, nggak perlu).
@@ -56,7 +84,8 @@ Update = jalanin `install.sh` lagi. **Nggak ada tombol update di panel**
 - Auto deploy tiap push (webhook GitHub)
 - **Git push deploy** — push ke remote Hikari, langsung build
 - Build Dockerfile, atau Railpack kalau nggak ada Dockerfile
-- Domain + HTTPS otomatis lewat Caddy, status TLS dibaca dari file sertifikat
+- Domain + HTTPS otomatis lewat Caddy (*installer* yang pasang Caddy), status TLS
+  dibaca dari file sertifikat
 - **Cloudflare auto-DNS** — bikin record A sendiri
 - Log container
 - Statistik CPU/RAM (diambil saat dibuka, nggak ada riwayat)
