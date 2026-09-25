@@ -1,17 +1,27 @@
 #!/usr/bin/env bash
 # Verifikasi git push deploy: bare repo, hook post-receive, dan endpoint-nya.
 set -euo pipefail
-export PATH="/home/ubuntu/.bun/bin:$PATH"
+#
+# PERINGATAN: skrip ini bikin dan MENGHAPUS container/volume Docker, dan
+# pernah memakai port 2508. Jangan dijalankan di mesin yang sedang melayani
+# Hikari produksi — panelnya bakal ikut ketiban dan datanya bisa hilang.
+# Pakai VPS uji atau mesin lokal.
+#
+
+# Akar repo ditentukan dari lokasi skrip, bukan di-hardcode ke path
+# mesin ini, biar skripnya bisa dipakai di mesin lain.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$HOME/.bun/bin:/usr/local/bin:$PATH"
 
 B="http://127.0.0.1:2508"
 DATA=/tmp/hik-fase3
 C=$DATA/cookies
 rm -rf "$DATA"; mkdir -p "$DATA"
 
-cd /home/ubuntu/Hikari-2nd-Panel/apps/server
+cd "${ROOT}/apps/server"
 HIKARI_PORT=2508 HIKARI_DATA="$DATA" HIKARI_VPS_IP=127.0.0.1 \
   HIKARI_GIT_HOST=127.0.0.1 HIKARI_GIT_PORT=2222 \
-  HIKARI_STATIC=/home/ubuntu/Hikari-2nd-Panel/apps/web/dist \
+  HIKARI_STATIC="${ROOT}/apps/web/dist" \
   bun run src/index.ts > "$DATA/server.log" 2>&1 &
 SRV=$!
 trap 'kill $SRV 2>/dev/null || true' EXIT
@@ -109,7 +119,7 @@ NOAUTH=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/apps/$AID/git")
 [ "$NOAUTH" = "401" ] && ok "info git butuh login" || bad "tanpa login dapet $NOAUTH"
 
 echo "--- 9. git-push dari shell TETAP jalan tanpa login ---"
-PSECRET=$(cd /home/ubuntu/Hikari-2nd-Panel/apps/server && bun -e "
+PSECRET=$(cd "${ROOT}/apps/server" && bun -e "
 const {Database}=require('bun:sqlite')
 const db=new Database('$DATA/hikari.sqlite')
 const r=db.query('SELECT value FROM settings WHERE key = ?').get('git_push_secret:$AID')

@@ -1,10 +1,56 @@
+# Dependensi
 node_modules/
+
+# Hasil build
 dist/
+*.tsbuildinfo
+
+# Log
 *.log
+
+# Rahasia & konfigurasi lingkungan
 .env
 .env.local
+.env.*.local
+
+# Data Hikari kalau dijalankan lokal (bukan di VPS).
+# Di VPS datanya di /var/lib/hikari, dan itu di luar repo.
+# Pola diarahkan ke lokasi data, BUKAN `*.key` global — file sumber yang
+# kebetulan berakhiran .key jangan sampai ketelen.
 /var/
+/data/
+**/data/secret.key
+**/caddy/certificates/
+
+# SQLite: database panel, plus file sementara WAL/SHM-nya.
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Backup database yang ada di disk pas nguji.
+**/backups/*.sql
+**/backups/*.rdb
+
+# Deploy key & known_hosts kalau dibuat di root repo (harusnya di data dir)
+known_hosts
+id_ed25519
+id_rsa
+
+# Berkas OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sampah kerjaan debugging: skrip uji coba, hasil dump, cookies curl.
+# Skrip verifikasi yang memang bagian repo (verify-*.sh) tetap di-track;
+# yang di-ignore cuma yang jelas sementara.
+debug-*.sh
+*.cookies
+*.tmp

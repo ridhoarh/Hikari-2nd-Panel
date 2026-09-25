@@ -10,10 +10,10 @@ sehari-hari.
 
 ```bash
 # Cepat
-curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/v0.1.1/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh | sudo bash
 
 # Aman: baca dulu, baru jalanin
-curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/v0.1.1/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh -o install.sh
 less install.sh && sudo bash install.sh
 ```
 
@@ -28,7 +28,8 @@ sopan.
 sudo HIKARI_VERSION=v0.1.1 bash install.sh
 ```
 
-Kalau dikosongin, dia pakai rilis terbaru.
+Kalau dikosongin, dia pakai rilis terbaru. Ganti `v0.1.1` dengan tag yang ada di
+[halaman Releases](https://github.com/ridhoarh/Hikari-2nd-Panel/releases).
 
 ## Yang Dilakuin `install.sh`
 
@@ -49,13 +50,13 @@ Dua hal yang sengaja dilakuin hati-hati:
 Update = jalanin `install.sh` lagi. **Nggak ada tombol update di panel**
 (nambah attack surface, nggak perlu).
 
-## Yang Bisa Dilakuin
+## Fitur
 
 - Deploy dari GitHub, Git URL, atau Docker Image langsung
 - Auto deploy tiap push (webhook GitHub)
 - **Git push deploy** — push ke remote Hikari, langsung build
 - Build Dockerfile, atau Railpack kalau nggak ada Dockerfile
-- Domain + HTTPS otomatis lewat Caddy
+- Domain + HTTPS otomatis lewat Caddy, status TLS dibaca dari file sertifikat
 - **Cloudflare auto-DNS** — bikin record A sendiri
 - Log container
 - Statistik CPU/RAM (diambil saat dibuka, nggak ada riwayat)
@@ -63,6 +64,9 @@ Update = jalanin `install.sh` lagi. **Nggak ada tombol update di panel**
 - **Database terkelola**: PostgreSQL, MySQL, Redis
 - **Object storage** MinIO (S3-compatible)
 - Backup manual + **terjadwal**, restore dari file, bisa di-download
+- **Terminal web** ke container lewat WebSocket
+- **GitHub App** — clone repo privat + kirim commit status
+- Pemakaian disk di halaman Settings, plus peringatan di 80%
 
 ## Git Push Deploy
 
@@ -100,8 +104,19 @@ cron** — jadwalnya dicek tiap abis deploy sukses, jadi kalau nggak ada aktivit
 nggak ada backup. File-nya disimpen di `<dataDir>/backups`, dipangkas otomatis
 setelah 14 hari.
 
+Formatnya beda per engine:
+
+| Engine | File | Cara bikin |
+|---|---|---|
+| PostgreSQL | `.sql` | `pg_dump --clean --if-exists` |
+| MySQL | `.sql` | `mysqldump --add-drop-table` |
+| Redis | `.rdb` | `BGSAVE`, terus `dump.rdb` dibaca keluar |
+
 Restore dari file `.sql` lewat tombol di kartu database. Dump-nya dibikin pakai
 `--clean --if-exists`, jadi bisa di-restore berulang kali tanpa bentrok tabel.
+
+**Redis restore belum didukung** — yang bisa cuma backup dan download. Untuk
+balikin, matiin database-nya, taruh `.rdb` ke volume-nya, terus nyalain lagi.
 
 ## Database
 
@@ -141,22 +156,57 @@ Environment=HIKARI_MINIO_IMAGE=minio/minio:latest
 
 ## Yang Belum Ada
 
-Terminal web ke container sudah ada di backend (`terminal/session.ts`), tapi
-belum disambungin ke UI. GitHub App (bisa akses semua repo + kirim status balik)
-juga belum — sekarang masih pakai deploy key + webhook.
+- **Restore Redis** — backup dan download udah jalan, balikinnya masih manual.
+- **MongoDB** — sengaja nggak didukung, sesuai rancangan.
+- **Update dari panel** — sengaja: jalanin `install.sh` lagi.
 
 ## Verifikasi
 
-Ada 4 skrip yang nyalain server terus nguji hal yang nggak bisa dites lewat unit
-test — butuh Docker jalan:
+Unit test cepet, tapi banyak bug di proyek ini cuma ketemu kalau dijalankan
+sungguhan — salah satunya `install.sh` yang "sukses" tapi service-nya
+crash-loop tanpa henti. Jadi ada skrip yang nyalain server terus nguji pakai
+Docker beneran.
 
 ```bash
-bun run build
-bash verify-e2e.sh       # app: build, memory limit, port isolation, SPA
-bash verify-fase2.sh     # database: postgres sungguhan, backup, minio
-bash verify-gitpush.sh   # git push: bare repo, hook, git-shell
-bash verify-fase3.sh     # restore sungguhan, jadwal backup, terminal
+bun run build   # skrip-skrip ini butuh frontend ke-build dulu
+
+bash verify-e2e.sh        # app: build BuildKit, memory limit, port isolation, SPA
+bash verify-fase2.sh      # database: postgres sungguhan, ganti mode, minio
+bash verify-fase3.sh      # restore sungguhan, jadwal backup, terminal
+bash verify-volume.sh     # hapus project nggak boleh hapus volume
+bash verify-terminal.sh   # WebSocket terminal, resize, shell ngawur ditolak
+bash verify-gitpush.sh    # bare repo, hook, git-shell
+bash verify-github.sh     # GitHub App, JWT diverifikasi pakai public key
+bash verify-sisa.sh       # backup redis, status TLS, pemakaian disk
 ```
+
+> **PERINGATAN.** Skrip-skrip ini bikin dan **menghapus** container serta volume
+> Docker, dan pakai port `2508`. **Jangan dijalankan di mesin yang sedang
+> melayani Hikari produksi** — panelnya bakal ketiban dan volume database bisa
+> kehapus. Pakai VPS uji atau mesin lokal.
+>
+> `verify-sisa.sh` udah dilengkapi pengaman: dia nolak jalan kalau port `2508`
+> udah kepake, dan cuma nyentuh container yang dia bikin sendiri.
+
+Semuanya balikin kode keluar bukan-nol kalau ada yang gagal, jadi bisa dipakai
+di CI.
+
+### Nulis skrip verifikasi baru
+
+Semua skrip rata-rata pakai pola yang sama. Tiga hal yang wajib diikutin:
+
+1. **Tentukan akar repo dari lokasi skrip**, jangan di-hardcode:
+   ```bash
+   ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+   ```
+   Tanpa ini, skripnya cuma jalan di mesin yang bikin.
+2. **Pakai data di `/tmp`, jangan `/var/lib/hikari`.** Yang terakhir itu data
+   produksi; skrip yang salah bisa ngehapus database yang lagi dipakai.
+3. **Bersihin cuma yang kamu bikin.** Catat nama container di satu array terus
+   hapus dari daftar itu. Jangan `docker rm -f $(docker ps -aq --filter ...)`
+   dengan filter longgar — itu gampang kena container lain.
+
+Pasang `trap ... EXIT` biar bersih walau skripnya mati di tengah.
 
 ## Yang Sengaja Nggak Ada
 
@@ -184,17 +234,6 @@ bun run typecheck
 bun run build
 ```
 
-## Verifikasi
-
-Ada skrip yang nyalain server terus nguji deploy sungguhan — bukan cuma unit
-test. Butuh Docker jalan:
-
-```bash
-bun run build
-bash verify-e2e.sh     # app: build, memory limit, port isolation, SPA
-bash verify-fase2.sh   # database: postgres sungguhan, backup, minio
-```
-
 ## Butuh
 
 - Ubuntu/Debian
@@ -205,9 +244,11 @@ bash verify-fase2.sh   # database: postgres sungguhan, backup, minio
 ## Struktur
 
 ```
-apps/server   Bun + Hono, API + serve frontend
-apps/web      Vite + React + TanStack Router
-plan/         Rancangan dan rencana implementasi
+apps/server         Bun + Hono, API + serve frontend
+apps/web            Vite + React + TanStack Router
+plan/               Rancangan dan rencana implementasi
+verify-*.sh         Verifikasi end-to-end, butuh Docker (lihat bagian Verifikasi)
+install.sh          Pemasang buat VPS (dipakai pengguna)
 ```
 
 Nggak ada `packages/shared`. Tipe yang dipakai bareng ditulis di

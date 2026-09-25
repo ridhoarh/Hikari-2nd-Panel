@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # Verifikasi Fase 2 dari kondisi bersih: database sungguhan + storage.
 set -euo pipefail
-export PATH="/home/ubuntu/.bun/bin:$PATH"
+#
+# PERINGATAN: skrip ini bikin dan MENGHAPUS container/volume Docker, dan
+# pernah memakai port 2508. Jangan dijalankan di mesin yang sedang melayani
+# Hikari produksi — panelnya bakal ikut ketiban dan datanya bisa hilang.
+# Pakai VPS uji atau mesin lokal.
+#
+
+# Akar repo ditentukan dari lokasi skrip, bukan di-hardcode ke path
+# mesin ini, biar skripnya bisa dipakai di mesin lain.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$HOME/.bun/bin:/usr/local/bin:$PATH"
 
 B="http://127.0.0.1:2508"
 DATA=/tmp/hik-fase2
 C=$DATA/cookies
 rm -rf "$DATA"; mkdir -p "$DATA"
 
-cd /home/ubuntu/Hikari-2nd-Panel/apps/server
+cd "${ROOT}/apps/server"
 HIKARI_PORT=2508 HIKARI_DATA="$DATA" HIKARI_VPS_IP=127.0.0.1 \
-  HIKARI_STATIC=/home/ubuntu/Hikari-2nd-Panel/apps/web/dist \
+  HIKARI_STATIC="${ROOT}/apps/web/dist" \
   bun run src/index.ts > "$DATA/server.log" 2>&1 &
 SRV=$!
 trap 'kill $SRV 2>/dev/null || true' EXIT
