@@ -44,6 +44,28 @@ bukan yang cuma manggil fungsi.
 
 ### Tes yang menangkap bug nyata
 
+**Tes harus dibuktikan BISA gagal.** Ini pelajaran paling mahal dari bikin
+`endpoint-coverage.test.ts`: dua versi pertamanya **lolos terus** padahal
+halamannya nggak ada — jadi tesnya nggak menjaga apa pun.
+
+- Versi 1: nyari potongan kata terakhir (`token`) di seluruh teks frontend.
+  Kata itu muncul di komentar dan nama variabel lain → selalu "ketemu".
+- Versi 2: nyari segmen berurutan di seluruh teks. `/github` di satu file dan
+  `/token` di file lain (jarak ribuan karakter) dihitung cocok, sementara
+  `/apps/:id/deploy` yang beneran dipakai malah nggak ketemu.
+- Versi 3 (yang dipakai): cuma lihat path yang beneran dikirim ke `api.*()`.
+
+Cara ngujinya: **hapus pemakaiannya sementara, tesnya harus gagal.** Kalau
+nggak gagal, tesnya belum ngukur apa-apa.
+
+```bash
+# bukti tesnya bekerja: komen satu pemakaian, tes harus nangis
+sed -i 's|api.del(`/backups/${id}`)|Promise.resolve({ok:true})|' \
+  apps/web/src/components/databases/database-card.tsx
+bun test apps/web/src/lib/endpoint-coverage.test.ts   # harus FAIL
+# lalu pulihkan
+```
+
 **Periksa argumen yang dikirim, bukan cuma hasil akhirnya:**
 
 ```ts
@@ -103,6 +125,14 @@ for (const path of [
 }
 ```
 
+**Cek silang dua arah.** Ada dua sisi yang gampang bolong, dan dua-duanya
+pernah kejadian:
+
+- Endpoint ada tapi tanpa auth → `routes/overview.test.ts` (401 tanpa login)
+- Endpoint ada tapi tanpa halaman → `lib/endpoint-coverage.test.ts`
+
+Kalau nambah salah satu, periksa dua-duanya.
+
 ### Aturan praktis
 
 1. **Tulis tes lebih dulu kalau bugunya udah ada.** Pastikan tesnya GAGAL
@@ -123,6 +153,7 @@ for (const path of [
 Yang **wajib** ada tesnya:
 
 - Semua endpoint: 401 tanpa login
+- Semua endpoint: punya pemakaian di frontend, atau pengecualian beralasan
 - Validasi input: body kosong, bukan JSON, nilai di luar batas
 - Operasi merusak: hapus project nggak hapus volume (`verify-volume.sh`)
 - Alur keamanan: setup sekali, batas login, ganti password

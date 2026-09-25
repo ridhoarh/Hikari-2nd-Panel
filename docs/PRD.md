@@ -123,20 +123,24 @@ Semua ini **udah jalan** dan diverifikasi di VPS sungguhan.
 | Fitur | Status | Catatan |
 |---|---|---|
 | Deploy dari GitHub / Git URL / image Docker | ✅ | |
-| Auto deploy tiap push (webhook) | ✅ | |
+| Auto deploy tiap push (webhook) | ✅ | URL + secret-nya ada di halaman app |
 | Git push deploy | ✅ | butuh setup manual user `git` + `authorized_keys` |
 | Build Dockerfile atau Railpack | ✅ | Railpack kalau nggak ada Dockerfile |
 | Domain + HTTPS otomatis (Caddy) | ✅ | |
+| Cek status TLS manual | ✅ | tombol per domain, nggak nunggu sinkronisasi otomatis |
 | Cloudflare auto-DNS | ✅ | |
 | Log container | ✅ | |
 | Statistik CPU/RAM | ✅ | diambil saat dibuka, nggak ada riwayat |
 | Batas RAM/CPU per app | ✅ | wajib diisi |
 | Database: PostgreSQL, MySQL, Redis | ✅ | password 32 karakter otomatis |
-| Object storage MinIO | ✅ | S3-compatible |
+| Object storage MinIO | ✅ | S3-compatible; bisa dinyalain/dimatiin |
+| Bucket publik/privat | ✅ | bisa diubah kapan aja |
 | Backup manual + terjadwal | ✅ | |
 | Restore dari file | ✅ | `.sql` aja; Redis belum |
+| Hapus file backup | ✅ | |
 | Terminal web ke container | ✅ | WebSocket |
 | GitHub App | ✅ | clone repo privat + commit status |
+| Deploy key per app | ✅ | public key-nya bisa disalin dari panel |
 | Disk usage + peringatan 80% | ✅ | |
 | Ganti password dari panel | ✅ | |
 

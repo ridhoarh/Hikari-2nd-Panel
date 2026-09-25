@@ -78,6 +78,23 @@ itu **bisa diakses tanpa login**. Ini bukan teori:
 Endpoin daftar lintas project udah dikunci pakai tes
 (`routes/overview.test.ts`). Buat yang lain: **inget-inget cek daftarnya**.
 
+### 5b. Tiap endpoint baru juga WAJIB punya jalan masuk dari panel
+
+Sisi sebaliknya dari aturan di atas, dan sama-sama pernah kejadian. Delapan
+endpoint — termasuk info webhook GitHub dan deploy key — udah lengkap di
+server tapi halamannya kelupaan dibikin. Akibatnya auto-deploy dari GitHub
+dan clone repo privat praktis nggak bisa dipakai, dan nggak ada satu tes pun
+yang gagal.
+
+Sekarang ada `apps/web/src/lib/endpoint-coverage.test.ts` yang ngecek tiap
+endpoint server punya pemakaian di frontend, atau terdaftar sebagai
+pengecualian **beserta alasannya**. Kalau nambah endpoint tanpa halaman,
+tesnya bakal gagal dan nyebut path-nya.
+
+Pengecualian hanya buat yang beneran bukan buat panel: dipanggil pihak luar
+(webhook), dipanggil internal server (`/github/token`), atau bagian alur
+login/setup.
+
 ### 6. Operasi yang lama nggak boleh ngeblok request
 
 Backup Redis butuh `BGSAVE` + nunggu selesai. Waktu itu dikerjain di dalam
