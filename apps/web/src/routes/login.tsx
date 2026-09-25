@@ -39,14 +39,14 @@ function LoginPage() {
 
   if (checking) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-sm text-ink-muted">
+      <main className="flex h-full items-center justify-center text-sm text-ink-muted">
         Memuat...
       </main>
     )
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
+    <main className="mx-auto flex h-full max-w-md flex-col justify-center overflow-y-auto px-6">
       <h1 className="text-2xl font-semibold">Masuk ke Hikari</h1>
 
       <form onSubmit={submit} className="mt-8 space-y-4">

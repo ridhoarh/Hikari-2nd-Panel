@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import type { AppRecord, ContainerStats, Deployment, Project } from '../lib/types'
 import { AppShell } from '../components/layout/app-shell'
 import { Card, CardBody, CardHeader } from '../components/ui/card'
+import { EmptyState, Field } from '../components/ui/list'
 import { StatusDot } from '../components/ui/status-dot'
 import { AppActions } from '../components/apps/app-actions'
 import { AppStats } from '../components/apps/app-stats'
@@ -17,18 +18,14 @@ import { AppGit } from '../components/apps/app-git'
 
 export const Route = createFileRoute('/_panel/apps/$appId')({ component: AppDetailPage })
 
-type Tab = 'overview' | 'deployments' | 'logs' | 'terminal' | 'env' | 'domains' | 'git'
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'deployments', label: 'Deployments' },
-  { id: 'logs', label: 'Logs' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'env', label: 'Env' },
-  { id: 'domains', label: 'Domains' },
-  { id: 'git', label: 'Git' },
-]
-
+/**
+ * Detail app.
+ *
+ * Dulu isinya dipecah jadi 7 tab, yang bikin fitur kayak Domains dan Git
+ * susah ketemu — dan satu layar cuma nampilin sepotong informasi. Sekarang
+ * semua panelnya kebuka bareng dalam grid, jadi cukup scroll buat lihat
+ * semuanya. Yang paling sering dipantau (status, aksi, statistik) di atas.
+ */
 function AppDetailPage() {
   const { appId } = Route.useParams()
   const { username } = useAuth()
@@ -41,7 +38,6 @@ function AppDetailPage() {
   const [deployments, setDeployments] = useState<Deployment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('overview')
 
   const load = useCallback(async () => {
     const detail = await api.get<{ app: AppRecord }>(`/apps/${appId}`)
@@ -80,11 +76,31 @@ function AppDetailPage() {
     void load()
   }, [load])
 
-  // Cuma polling pas tab Overview kebuka DAN tab browser-nya kelihatan.
-  useVisibleInterval(() => void load(), 15_000, tab === 'overview')
+  // Polling cuma pas tab browser-nya kelihatan — nggak ada proses yang nyala
+  // terus buat hal yang nggak dilihat.
+  useVisibleInterval(() => void load(), 15_000, true)
 
   return (
-    <AppShell username={username ?? 'admin'} title={app?.name ?? 'App'}>
+    <AppShell
+      username={username ?? 'admin'}
+      title={app?.name ?? 'App'}
+      subtitle={
+        app ? (
+          <span className="flex items-center gap-2">
+            <Link
+              to="/projects/$projectId"
+              params={{ projectId: app.project_id }}
+              className="transition-hikari hover:text-brand-text"
+            >
+              {project?.name ?? 'Project'}
+            </Link>
+            <span>·</span>
+            <span className="font-mono">{app.slug}</span>
+            <StatusDot status={app.status} />
+          </span>
+        ) : null
+      }
+    >
       {loading && <p className="text-sm text-ink-muted">Memuat...</p>}
 
       {error && (
@@ -95,112 +111,125 @@ function AppDetailPage() {
 
       {app && (
         <div className="space-y-4">
-          <div>
-            <Link
-              to="/projects/$projectId"
-              params={{ projectId: app.project_id }}
-              className="text-sm text-brand-text transition-hikari hover:underline"
-            >
-              ← {project?.name ?? 'Project'}
-            </Link>
-            <div className="mt-2 flex items-center gap-3">
-              <span className="font-mono text-xs text-ink-subtle">{app.slug}</span>
-              <StatusDot status={app.status} />
-            </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Kontrol</h2>
+              </CardHeader>
+              <CardBody>
+                <AppActions appId={appId} onChanged={load} />
+              </CardBody>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <h2 className="text-sm font-medium">Statistik</h2>
+              </CardHeader>
+              <CardBody>
+                <AppStats stats={stats} dockerAvailable={dockerAvailable} running={running} />
+              </CardBody>
+            </Card>
           </div>
 
-          <div role="tablist" className="flex gap-1 border-b border-line">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={tab === t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm transition-hikari ${
-                  tab === t.id
-                    ? 'border-brand font-medium text-brand-text'
-                    : 'border-transparent text-ink-muted hover:text-ink'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Konfigurasi</h2>
+              </CardHeader>
+              <CardBody>
+                <dl className="space-y-1.5 text-sm">
+                  <Field label="Sumber" value={app.source_type} mono />
+                  {app.repo_url && <Field label="Repo" value={app.repo_url} mono />}
+                  {app.branch && <Field label="Branch" value={app.branch} mono />}
+                  {app.image_ref && <Field label="Image" value={app.image_ref} mono />}
+                  <Field label="Port" value={String(app.container_port)} mono />
+                  <Field label="Batas RAM" value={`${app.memory_limit_mb} MB`} mono />
+                  <Field label="Batas CPU" value={String(app.cpu_limit)} mono />
+                </dl>
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Deployment</h2>
+              </CardHeader>
+              <CardBody>
+                {deployments.length === 0 ? (
+                  <EmptyState>Belum ada deployment.</EmptyState>
+                ) : (
+                  <ul className="space-y-2">
+                    {deployments.slice(0, 8).map((d) => (
+                      <li key={d.id} className="border-b border-line pb-2 last:border-0 last:pb-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-mono text-xs text-ink-subtle">
+                            {d.id.slice(0, 10)}
+                          </span>
+                          <span className="text-xs">{d.status}</span>
+                        </div>
+                        {d.commit_message && (
+                          <p className="mt-0.5 truncate text-sm text-ink-muted">
+                            {d.commit_message}
+                          </p>
+                        )}
+                        {d.error && (
+                          <p className="mt-0.5 font-mono text-xs text-danger">{d.error}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardBody>
+            </Card>
           </div>
 
-          {tab === 'overview' && (
-            <div className="space-y-4">
-              <AppActions appId={appId} onChanged={load} />
-              <AppStats
-                stats={stats}
-                dockerAvailable={dockerAvailable}
-                running={running}
-              />
-              <Card>
-                <CardHeader>
-                  <h2 className="text-sm font-medium">Konfigurasi</h2>
-                </CardHeader>
-                <CardBody>
-                  <dl className="space-y-1.5 text-sm">
-                    <Row label="Sumber" value={app.source_type} mono />
-                    {app.repo_url && <Row label="Repo" value={app.repo_url} mono />}
-                    {app.branch && <Row label="Branch" value={app.branch} mono />}
-                    {app.image_ref && <Row label="Image" value={app.image_ref} mono />}
-                    <Row label="Port" value={String(app.container_port)} mono />
-                    <Row label="Batas RAM" value={`${app.memory_limit_mb} MB`} mono />
-                    <Row label="Batas CPU" value={String(app.cpu_limit)} mono />
-                  </dl>
-                </CardBody>
-              </Card>
-            </div>
-          )}
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Domains</h2>
+              </CardHeader>
+              <CardBody>
+                <AppDomains appId={appId} containerPort={app.container_port} />
+              </CardBody>
+            </Card>
 
-          {tab === 'deployments' && (
-            <div>
-              {deployments.length === 0 && (
-                <p className="text-sm text-ink-muted">Belum ada deployment.</p>
-              )}
-              <div className="space-y-2">
-                {deployments.map((d) => (
-                  <Card key={d.id}>
-                    <CardBody>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-mono text-xs text-ink-subtle">
-                          {d.id.slice(0, 10)}
-                        </span>
-                        <span className="text-sm">{d.status}</span>
-                      </div>
-                      {d.commit_message && (
-                        <p className="mt-1.5 text-sm text-ink-muted">{d.commit_message}</p>
-                      )}
-                      {d.error && (
-                        <p className="mt-1.5 font-mono text-xs text-danger">{d.error}</p>
-                      )}
-                    </CardBody>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-medium">Environment</h2>
+              </CardHeader>
+              <CardBody>
+                <AppEnv appId={appId} />
+              </CardBody>
+            </Card>
+          </div>
 
-          {tab === 'logs' && <AppLogs appId={appId} />}
-          {tab === 'terminal' && <AppTerminal appId={appId} />}
-          {tab === 'env' && <AppEnv appId={appId} />}
-          {tab === 'domains' && (
-            <AppDomains appId={appId} containerPort={app.container_port} />
-          )}
-          {tab === 'git' && <AppGit appId={appId} />}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-medium">Log</h2>
+            </CardHeader>
+            <CardBody>
+              <AppLogs appId={appId} />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-medium">Terminal</h2>
+            </CardHeader>
+            <CardBody>
+              <AppTerminal appId={appId} />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-medium">Git</h2>
+            </CardHeader>
+            <CardBody>
+              <AppGit appId={appId} />
+            </CardBody>
+          </Card>
         </div>
       )}
     </AppShell>
-  )
-}
-
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-ink-muted">{label}</dt>
-      <dd className={`truncate ${mono ? 'font-mono text-xs' : ''}`}>{value}</dd>
-    </div>
   )
 }

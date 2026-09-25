@@ -13,7 +13,19 @@ import { Route as PanelRouteImport } from './routes/_panel'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as PanelIndexRouteImport } from './routes/_panel.index'
-import { Route as PanelSettingsRouteImport } from './routes/_panel.settings'
+import { Route as PanelAccountRouteImport } from './routes/_panel.account'
+import { Route as PanelActivityRouteImport } from './routes/_panel.activity'
+import { Route as PanelApplicationsRouteImport } from './routes/_panel.applications'
+import { Route as PanelBackupsRouteImport } from './routes/_panel.backups'
+import { Route as PanelCloudflareRouteImport } from './routes/_panel.cloudflare'
+import { Route as PanelDatabasesRouteImport } from './routes/_panel.databases'
+import { Route as PanelDomainsRouteImport } from './routes/_panel.domains'
+import { Route as PanelGitPushRouteImport } from './routes/_panel.git-push'
+import { Route as PanelGithubRouteImport } from './routes/_panel.github'
+import { Route as PanelPanelRouteImport } from './routes/_panel.panel'
+import { Route as PanelProjectsRouteImport } from './routes/_panel.projects'
+import { Route as PanelProxyRouteImport } from './routes/_panel.proxy'
+import { Route as PanelStorageRouteImport } from './routes/_panel.storage'
 import { Route as PanelAppsAppIdRouteImport } from './routes/_panel.apps.$appId'
 import { Route as PanelProjectsProjectIdRouteImport } from './routes/_panel.projects.$projectId'
 
@@ -36,9 +48,69 @@ const PanelIndexRoute = PanelIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PanelRoute,
 } as any)
-const PanelSettingsRoute = PanelSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const PanelAccountRoute = PanelAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelActivityRoute = PanelActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelApplicationsRoute = PanelApplicationsRouteImport.update({
+  id: '/applications',
+  path: '/applications',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelBackupsRoute = PanelBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelCloudflareRoute = PanelCloudflareRouteImport.update({
+  id: '/cloudflare',
+  path: '/cloudflare',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelDatabasesRoute = PanelDatabasesRouteImport.update({
+  id: '/databases',
+  path: '/databases',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelDomainsRoute = PanelDomainsRouteImport.update({
+  id: '/domains',
+  path: '/domains',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelGitPushRoute = PanelGitPushRouteImport.update({
+  id: '/git-push',
+  path: '/git-push',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelGithubRoute = PanelGithubRouteImport.update({
+  id: '/github',
+  path: '/github',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelPanelRoute = PanelPanelRouteImport.update({
+  id: '/panel',
+  path: '/panel',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelProjectsRoute = PanelProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelProxyRoute = PanelProxyRouteImport.update({
+  id: '/proxy',
+  path: '/proxy',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelStorageRoute = PanelStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
   getParentRoute: () => PanelRoute,
 } as any)
 const PanelAppsAppIdRoute = PanelAppsAppIdRouteImport.update({
@@ -47,23 +119,47 @@ const PanelAppsAppIdRoute = PanelAppsAppIdRouteImport.update({
   getParentRoute: () => PanelRoute,
 } as any)
 const PanelProjectsProjectIdRoute = PanelProjectsProjectIdRouteImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
-  getParentRoute: () => PanelRoute,
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => PanelProjectsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof PanelIndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/settings': typeof PanelSettingsRoute
+  '/account': typeof PanelAccountRoute
+  '/activity': typeof PanelActivityRoute
+  '/applications': typeof PanelApplicationsRoute
+  '/backups': typeof PanelBackupsRoute
+  '/cloudflare': typeof PanelCloudflareRoute
+  '/databases': typeof PanelDatabasesRoute
+  '/domains': typeof PanelDomainsRoute
+  '/git-push': typeof PanelGitPushRoute
+  '/github': typeof PanelGithubRoute
+  '/panel': typeof PanelPanelRoute
+  '/projects': typeof PanelProjectsRouteWithChildren
+  '/proxy': typeof PanelProxyRoute
+  '/storage': typeof PanelStorageRoute
   '/apps/$appId': typeof PanelAppsAppIdRoute
   '/projects/$projectId': typeof PanelProjectsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/settings': typeof PanelSettingsRoute
+  '/account': typeof PanelAccountRoute
+  '/activity': typeof PanelActivityRoute
+  '/applications': typeof PanelApplicationsRoute
+  '/backups': typeof PanelBackupsRoute
+  '/cloudflare': typeof PanelCloudflareRoute
+  '/databases': typeof PanelDatabasesRoute
+  '/domains': typeof PanelDomainsRoute
+  '/git-push': typeof PanelGitPushRoute
+  '/github': typeof PanelGithubRoute
+  '/panel': typeof PanelPanelRoute
+  '/projects': typeof PanelProjectsRouteWithChildren
+  '/proxy': typeof PanelProxyRoute
+  '/storage': typeof PanelStorageRoute
   '/': typeof PanelIndexRoute
   '/apps/$appId': typeof PanelAppsAppIdRoute
   '/projects/$projectId': typeof PanelProjectsProjectIdRoute
@@ -73,7 +169,19 @@ export interface FileRoutesById {
   '/_panel': typeof PanelRouteWithChildren
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/_panel/settings': typeof PanelSettingsRoute
+  '/_panel/account': typeof PanelAccountRoute
+  '/_panel/activity': typeof PanelActivityRoute
+  '/_panel/applications': typeof PanelApplicationsRoute
+  '/_panel/backups': typeof PanelBackupsRoute
+  '/_panel/cloudflare': typeof PanelCloudflareRoute
+  '/_panel/databases': typeof PanelDatabasesRoute
+  '/_panel/domains': typeof PanelDomainsRoute
+  '/_panel/git-push': typeof PanelGitPushRoute
+  '/_panel/github': typeof PanelGithubRoute
+  '/_panel/panel': typeof PanelPanelRoute
+  '/_panel/projects': typeof PanelProjectsRouteWithChildren
+  '/_panel/proxy': typeof PanelProxyRoute
+  '/_panel/storage': typeof PanelStorageRoute
   '/_panel/': typeof PanelIndexRoute
   '/_panel/apps/$appId': typeof PanelAppsAppIdRoute
   '/_panel/projects/$projectId': typeof PanelProjectsProjectIdRoute
@@ -84,14 +192,38 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/setup'
-    | '/settings'
+    | '/account'
+    | '/activity'
+    | '/applications'
+    | '/backups'
+    | '/cloudflare'
+    | '/databases'
+    | '/domains'
+    | '/git-push'
+    | '/github'
+    | '/panel'
+    | '/projects'
+    | '/proxy'
+    | '/storage'
     | '/apps/$appId'
     | '/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/setup'
-    | '/settings'
+    | '/account'
+    | '/activity'
+    | '/applications'
+    | '/backups'
+    | '/cloudflare'
+    | '/databases'
+    | '/domains'
+    | '/git-push'
+    | '/github'
+    | '/panel'
+    | '/projects'
+    | '/proxy'
+    | '/storage'
     | '/'
     | '/apps/$appId'
     | '/projects/$projectId'
@@ -100,7 +232,19 @@ export interface FileRouteTypes {
     | '/_panel'
     | '/login'
     | '/setup'
-    | '/_panel/settings'
+    | '/_panel/account'
+    | '/_panel/activity'
+    | '/_panel/applications'
+    | '/_panel/backups'
+    | '/_panel/cloudflare'
+    | '/_panel/databases'
+    | '/_panel/domains'
+    | '/_panel/git-push'
+    | '/_panel/github'
+    | '/_panel/panel'
+    | '/_panel/projects'
+    | '/_panel/proxy'
+    | '/_panel/storage'
     | '/_panel/'
     | '/_panel/apps/$appId'
     | '/_panel/projects/$projectId'
@@ -142,11 +286,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PanelIndexRouteImport
       parentRoute: typeof PanelRoute
     }
-    '/_panel/settings': {
-      id: '/_panel/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof PanelSettingsRouteImport
+    '/_panel/account': {
+      id: '/_panel/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof PanelAccountRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/activity': {
+      id: '/_panel/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof PanelActivityRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/applications': {
+      id: '/_panel/applications'
+      path: '/applications'
+      fullPath: '/applications'
+      preLoaderRoute: typeof PanelApplicationsRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/backups': {
+      id: '/_panel/backups'
+      path: '/backups'
+      fullPath: '/backups'
+      preLoaderRoute: typeof PanelBackupsRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/cloudflare': {
+      id: '/_panel/cloudflare'
+      path: '/cloudflare'
+      fullPath: '/cloudflare'
+      preLoaderRoute: typeof PanelCloudflareRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/databases': {
+      id: '/_panel/databases'
+      path: '/databases'
+      fullPath: '/databases'
+      preLoaderRoute: typeof PanelDatabasesRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/domains': {
+      id: '/_panel/domains'
+      path: '/domains'
+      fullPath: '/domains'
+      preLoaderRoute: typeof PanelDomainsRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/git-push': {
+      id: '/_panel/git-push'
+      path: '/git-push'
+      fullPath: '/git-push'
+      preLoaderRoute: typeof PanelGitPushRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/github': {
+      id: '/_panel/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof PanelGithubRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/panel': {
+      id: '/_panel/panel'
+      path: '/panel'
+      fullPath: '/panel'
+      preLoaderRoute: typeof PanelPanelRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/projects': {
+      id: '/_panel/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof PanelProjectsRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/proxy': {
+      id: '/_panel/proxy'
+      path: '/proxy'
+      fullPath: '/proxy'
+      preLoaderRoute: typeof PanelProxyRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/_panel/storage': {
+      id: '/_panel/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof PanelStorageRouteImport
       parentRoute: typeof PanelRoute
     }
     '/_panel/apps/$appId': {
@@ -158,26 +386,60 @@ declare module '@tanstack/react-router' {
     }
     '/_panel/projects/$projectId': {
       id: '/_panel/projects/$projectId'
-      path: '/projects/$projectId'
+      path: '/$projectId'
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof PanelProjectsProjectIdRouteImport
-      parentRoute: typeof PanelRoute
+      parentRoute: typeof PanelProjectsRoute
     }
   }
 }
 
-interface PanelRouteChildren {
-  PanelSettingsRoute: typeof PanelSettingsRoute
-  PanelIndexRoute: typeof PanelIndexRoute
-  PanelAppsAppIdRoute: typeof PanelAppsAppIdRoute
+interface PanelProjectsRouteChildren {
   PanelProjectsProjectIdRoute: typeof PanelProjectsProjectIdRoute
 }
 
+const PanelProjectsRouteChildren: PanelProjectsRouteChildren = {
+  PanelProjectsProjectIdRoute: PanelProjectsProjectIdRoute,
+}
+
+const PanelProjectsRouteWithChildren = PanelProjectsRoute._addFileChildren(
+  PanelProjectsRouteChildren,
+)
+
+interface PanelRouteChildren {
+  PanelAccountRoute: typeof PanelAccountRoute
+  PanelActivityRoute: typeof PanelActivityRoute
+  PanelApplicationsRoute: typeof PanelApplicationsRoute
+  PanelBackupsRoute: typeof PanelBackupsRoute
+  PanelCloudflareRoute: typeof PanelCloudflareRoute
+  PanelDatabasesRoute: typeof PanelDatabasesRoute
+  PanelDomainsRoute: typeof PanelDomainsRoute
+  PanelGitPushRoute: typeof PanelGitPushRoute
+  PanelGithubRoute: typeof PanelGithubRoute
+  PanelPanelRoute: typeof PanelPanelRoute
+  PanelProjectsRoute: typeof PanelProjectsRouteWithChildren
+  PanelProxyRoute: typeof PanelProxyRoute
+  PanelStorageRoute: typeof PanelStorageRoute
+  PanelIndexRoute: typeof PanelIndexRoute
+  PanelAppsAppIdRoute: typeof PanelAppsAppIdRoute
+}
+
 const PanelRouteChildren: PanelRouteChildren = {
-  PanelSettingsRoute: PanelSettingsRoute,
+  PanelAccountRoute: PanelAccountRoute,
+  PanelActivityRoute: PanelActivityRoute,
+  PanelApplicationsRoute: PanelApplicationsRoute,
+  PanelBackupsRoute: PanelBackupsRoute,
+  PanelCloudflareRoute: PanelCloudflareRoute,
+  PanelDatabasesRoute: PanelDatabasesRoute,
+  PanelDomainsRoute: PanelDomainsRoute,
+  PanelGitPushRoute: PanelGitPushRoute,
+  PanelGithubRoute: PanelGithubRoute,
+  PanelPanelRoute: PanelPanelRoute,
+  PanelProjectsRoute: PanelProjectsRouteWithChildren,
+  PanelProxyRoute: PanelProxyRoute,
+  PanelStorageRoute: PanelStorageRoute,
   PanelIndexRoute: PanelIndexRoute,
   PanelAppsAppIdRoute: PanelAppsAppIdRoute,
-  PanelProjectsProjectIdRoute: PanelProjectsProjectIdRoute,
 }
 
 const PanelRouteWithChildren = PanelRoute._addFileChildren(PanelRouteChildren)

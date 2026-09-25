@@ -98,3 +98,35 @@ export type BucketRecord = {
   is_public: number
   created_at: string
 }
+
+/**
+ * Data gabungan lintas project — dipakai halaman datar di sidebar.
+ *
+ * Server nempelin `project_name` (dan `app_name` buat domain) supaya halaman
+ * nggak perlu manggil /projects dulu cuma buat nampilin asal-usulnya.
+ */
+export type AppWithProject = AppRecord & { project_name: string | null }
+
+export type DbWithProject = DbRecord & { project_name: string | null }
+
+export type BucketWithProject = BucketRecord & { project_name: string | null }
+
+export type DomainWithApp = Domain & {
+  app_id: string
+  app_name: string | null
+  project_id: string | null
+  project_name: string | null
+}
+
+export type BackupWithContext = BackupRecord & {
+  database_name: string
+  database_engine: DbEngine
+  project_name: string | null
+}
+
+export type ActivityItem = Deployment & {
+  app_id: string
+  app_name: string | null
+  project_id: string | null
+  project_name: string | null
+}
