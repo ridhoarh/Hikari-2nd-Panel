@@ -3,6 +3,19 @@ import { join } from 'node:path'
 import type { Database } from './db/client'
 import { runAutoBackup } from './db/auto-backup'
 import { createBuildFn } from './build/execute'
+import {
+  createInstallationToken,
+  buildAppJwt,
+  listInstallations,
+  parseRepoFullName,
+  pickInstallation,
+} from './github/github-app'
+import {
+  getCachedToken,
+  getGithubAppId,
+  getGithubAppKey,
+  setCachedToken,
+} from './github/settings'
 import { createDeployQueue } from './build/deploy-queue'
 import { syncCaddy } from './caddy/service'
 import { openDatabase } from './db/client'
@@ -21,6 +34,7 @@ import { createStorageRoutes } from './routes/storage'
 import { createWebhookInfoRoute, createWebhookRoutes } from './routes/webhooks'
 import { createGitPushRoutes, setupRepoForApp } from './git-push/routes'
 import { createCloudflareRoutes } from './cloudflare/routes'
+import { createGithubRoutes } from './github/routes'
 import { listApps } from './repositories/apps'
 import { mountStatic } from './static'
 
@@ -104,6 +118,39 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
       workDir,
       deployKeyDir,
       knownHostsPath,
+      resolveGithubToken: async (repoUrl) => {
+        const fullName = parseRepoFullName(repoUrl)
+        if (!fullName) return null
+
+        const appId = getGithubAppId(db)
+        const privateKey = getGithubAppKey(db, cryptoKey)
+        if (!appId || !privateKey) return null
+
+        try {
+          const jwt = buildAppJwt({ appId, privateKey })
+          const list = await listInstallations({ jwt })
+          if (!list.ok) return null
+
+          const inst = pickInstallation(list.installations, new Set<number>())
+          if (!inst) return null
+
+          const cached = getCachedToken(inst.id)
+          if (cached) return cached
+
+          const token = await createInstallationToken({
+            jwt,
+            installationId: inst.id,
+          })
+          if (!token.ok || !token.token) return null
+
+          setCachedToken(inst.id, token.token)
+          return token.token
+        } catch {
+          // Token gagal diambil bukan error fatal: clone-nya bakal jatuh ke
+          // deploy key. Yang penting errornya kelihatan di log build.
+          return null
+        }
+      },
     }),
     onDeploySuccess: () => {
       // Backup terjadwal dicek di jalur deploy, bukan pakai timer.
@@ -140,6 +187,7 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
   app.use('/api/storage/*', auth)
   app.use('/api/git/*', auth)
   app.use('/api/cloudflare/*', auth)
+  app.use('/api/github/*', auth)
   // CATATAN: /api/git-push/* SENGAJA nggak lewat requireAuth. Yang manggil
   // itu hook post-receive dari shell, dan dia nggak punya cookie. Dijaga
   // pakai push-secret per app.
@@ -215,6 +263,7 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
       onDomainChange: syncCaddySekarang,
     })
   )
+  app.route('/api', createGithubRoutes({ db, cryptoKey }))
 
   const gitApiUrl = `http://127.0.0.1:${config.port}`
   app.route(

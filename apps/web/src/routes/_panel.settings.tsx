@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button'
 import { Card, CardBody, CardHeader } from '../components/ui/card'
 import { CloudflarePanel } from '../components/settings/cloudflare-panel'
 import { BackupSchedulePanel } from '../components/settings/backup-schedule-panel'
+import { GithubPanel } from '../components/settings/github-panel'
 
 export const Route = createFileRoute('/_panel/settings')({ component: SettingsPage })
 
@@ -99,6 +100,15 @@ function SettingsPage() {
           </CardHeader>
           <CardBody>
             <BackupSchedulePanel />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-medium">GitHub App</h2>
+          </CardHeader>
+          <CardBody>
+            <GithubPanel />
           </CardBody>
         </Card>
 

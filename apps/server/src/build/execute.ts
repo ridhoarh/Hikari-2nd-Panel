@@ -8,6 +8,7 @@ import type { App } from '../repositories/apps'
 import { builderName, ensureBuildKit, stopBuildKit } from './buildkit'
 import { BATAS_PULL_MS, run } from './exec'
 import { cloneRepo } from './git'
+import { cloneUrlWithToken, parseRepoFullName } from '../github/github-app'
 import { chooseBuildPlan, dockerBuildArgs, railpackArgs } from './strategy'
 
 export { BATAS_BUILD_MS, BATAS_PULL_MS, run } from './exec'
@@ -27,6 +28,11 @@ export type ExecuteDeps = {
   workDir: string
   deployKeyDir: string
   knownHostsPath: string
+  /**
+   * Kalau diisi, repo GitHub dikloning pakai token ini (GitHub App),
+   * bukan deploy key. Dipakai buat repo yang App-nya terpasang.
+   */
+  resolveGithubToken?: (repoUrl: string) => Promise<string | null>
 }
 
 export function createBuildFn(
@@ -59,8 +65,18 @@ export function createBuildFn(
 
     const privateKeyPath = join(deps.deployKeyDir, app.slug)
 
+    // Repo GitHub yang App-nya terpasang dikloning pakai token, bukan
+    // deploy key. Bedanya: token nggak perlu ditempel manual per repo.
+    const token = deps.resolveGithubToken
+      ? await deps.resolveGithubToken(app.repo_url).catch(() => null)
+      : null
+
+    const repoUrl = token
+      ? cloneUrlWithToken(parseRepoFullName(app.repo_url) ?? app.repo_url, token)
+      : app.repo_url
+
     const cloned = await cloneRepo({
-      repoUrl: app.repo_url,
+      repoUrl,
       branch: app.branch ?? 'main',
       privateKeyPath,
       knownHostsPath: deps.knownHostsPath,
