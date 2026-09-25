@@ -48,6 +48,22 @@ ACME_EMAIL="${ENV_HIKARI_ACME_EMAIL:-}"
 # Kalau IP nggak dikasih, tebak dari interface utama. Dipakai buat nampilin
 # alamat koneksi database publik — tanpa ini panel bakal nulis 127.0.0.1,
 # yang bikin connection string-nya menyesatkan kalau di-copy ke luar.
+#
+# `hostname -I` cuma bisa liat IP interface, dan di VPS yang di belakang NAT
+# (umum di Oracle/GCP/AWS) yang keliatan itu IP privat — misal 10.3.10.80 —
+# padahal IP publiknya beda. Connection string-nya jadi ngarah ke alamat yang
+# nggak bisa diakses dari luar. Jadi IP publik ditanya ke layanan luar dulu,
+# baru jatuh ke IP interface kalau jaringan nggak bisa keluar.
+if [ -z "${VPS_IP}" ]; then
+  for url in https://api.ipify.org https://ifconfig.me/ip https://icanhazip.com; do
+    detected="$(curl -fsS -m 5 "$url" 2>/dev/null | tr -d '[:space:]' || true)"
+    # Cuma terima IPv4 yang bentuknya wajar; sisanya (halaman error, IPv6,
+    # blokir proxy) diabaikan dan coba layanan berikutnya.
+    case "$detected" in
+      [0-9]*.[0-9]*.[0-9]*.[0-9]*) VPS_IP="$detected"; break ;;
+    esac
+  done
+fi
 if [ -z "${VPS_IP}" ]; then
   VPS_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 fi
