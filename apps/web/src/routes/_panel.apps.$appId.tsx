@@ -10,18 +10,20 @@ import { StatusDot } from '../components/ui/status-dot'
 import { AppActions } from '../components/apps/app-actions'
 import { AppStats } from '../components/apps/app-stats'
 import { AppLogs } from '../components/apps/app-logs'
+import { AppTerminal } from '../components/apps/app-terminal'
 import { AppEnv } from '../components/apps/app-env'
 import { AppDomains } from '../components/apps/app-domains'
 import { AppGit } from '../components/apps/app-git'
 
 export const Route = createFileRoute('/_panel/apps/$appId')({ component: AppDetailPage })
 
-type Tab = 'overview' | 'deployments' | 'logs' | 'env' | 'domains' | 'git'
+type Tab = 'overview' | 'deployments' | 'logs' | 'terminal' | 'env' | 'domains' | 'git'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'deployments', label: 'Deployments' },
   { id: 'logs', label: 'Logs' },
+  { id: 'terminal', label: 'Terminal' },
   { id: 'env', label: 'Env' },
   { id: 'domains', label: 'Domains' },
   { id: 'git', label: 'Git' },
@@ -182,6 +184,7 @@ function AppDetailPage() {
           )}
 
           {tab === 'logs' && <AppLogs appId={appId} />}
+          {tab === 'terminal' && <AppTerminal appId={appId} />}
           {tab === 'env' && <AppEnv appId={appId} />}
           {tab === 'domains' && (
             <AppDomains appId={appId} containerPort={app.container_port} />

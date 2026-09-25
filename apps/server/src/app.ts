@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { join } from 'node:path'
+import type { Database } from './db/client'
 import { runAutoBackup } from './db/auto-backup'
 import { createBuildFn } from './build/execute'
 import { createDeployQueue } from './build/deploy-queue'
@@ -43,7 +44,27 @@ export type AppConfig = {
   gitPort?: number
 }
 
+/** Yang dipakai lagi di luar `createApp` (contoh: terminal WebSocket). */
+export type AppInternals = {
+  app: Hono
+  db: Database
+  docker: ReturnType<typeof getDocker>
+  cryptoKey: Buffer
+}
+
 export function createApp(config: AppConfig): Hono {
+  return createAppWithInternals(config).app
+}
+
+/**
+ * Sama kayak `createApp`, tapi juga balikin handle database & Docker-nya.
+ *
+ * Dipakai `index.ts` buat nyambungin terminal WebSocket: handler-nya hidup
+ * di luar Hono, jadi butuh akses ke database dan Docker yang **sama**
+ * dengan yang dipakai HTTP. Buka database dua kali bikin dua sumber
+ * kebenaran.
+ */
+export function createAppWithInternals(config: AppConfig): AppInternals {
   const dataDir = config.dataDir ?? '/var/lib/hikari'
 
   const db = openDatabase(config.dbPath)
@@ -237,5 +258,5 @@ export function createApp(config: AppConfig): Hono {
     return c.json({ error: 'Ada yang salah di server' }, 500)
   })
 
-  return app
+  return { app, db, docker, cryptoKey }
 }
