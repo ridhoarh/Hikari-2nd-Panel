@@ -48,6 +48,19 @@ desktop.ini
 *.swp
 *.swo
 
+# Config IDE yang dibikin tool skill pas dipasang per-platform.
+# Yang dipakai di repo ini cuma `.agents/skills/` (cross-framework), jadi
+# sisanya cuma muncul kalau ada yang jalanin `graphify <platform> install`
+# atau `skills add` dengan platform lain. Isinya nunjuk ke path lokal, jadi
+# nggak ada gunanya buat orang lain yang nge-clone.
+.claude/
+.cursor/
+.codex/
+.kilo/
+.kiro/
+.gemini/
+.opencode/
+
 # Sampah kerjaan debugging: skrip uji coba, hasil dump, cookies curl.
 # Skrip verifikasi yang memang bagian repo (verify-*.sh) tetap di-track;
 # yang di-ignore cuma yang jelas sementara.
@@ -55,7 +68,22 @@ debug-*.sh
 *.cookies
 *.tmp
 
-# Keluaran graphify (knowledge graph). Bisa dibangun ulang kapan aja dengan
-# `graphify extract . --code-only`, dan graph.json-nya ratusan KB sampai
-# beberapa MB — nggak perlu masuk git.
+# --- Keluaran tool skill ---------------------------------------------------
+#
+# `.agents/skills/` dan `skills-lock.json` SENGAJA di-track: isinya cuma
+# teks (~164 KB, file terbesar 44 KB), bikin setup seragam buat siapa pun
+# yang nge-clone, dan dipasangnya pakai `--copy` jadi nggak ada symlink
+# yang bisa rusak.
+
+# Tapi keluarannya nggak ikut. `graphify-out/` isinya knowledge graph yang
+# bisa dibangun ulang kapan aja (`graphify extract . --code-only`) dan
+# ukurannya ratusan KB sampai beberapa MB.
 graphify-out/
+
+# Log query graphify. Ditulis ke ~/.cache secara default, tapi bisa
+# diarahkan ke dalam repo lewat GRAPHIFY_QUERY_LOG — file ini isinya
+# pertanyaan yang kita tanyain ke graph, jadi jangan sampai ikut ke-commit.
+.graphify-queries.log*
+
+# Cache AST graphify kalau ada yang naro di luar graphify-out/.
+**/.graphify_cache/
