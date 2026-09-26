@@ -65,7 +65,7 @@ const GROUPS: NavGroup[] = [
 
 export function Sidebar({ username }: { username: string }) {
   const router = useRouter()
-  const { version, adaVersiBaru, muatUlang } = useVersion()
+  const { version, env, adaVersiBaru, muatUlang } = useVersion()
 
   async function logout() {
     await api.post('/auth/logout')
@@ -90,6 +90,14 @@ export function Sidebar({ username }: { username: string }) {
             berapa — tanpa perlu klik apa-apa dulu. */}
         {version && (
           <span className="ml-2 font-mono text-[11px] text-ink-subtle">v{version}</span>
+        )}
+        {/* Penanda environment. Waktu lagi ngoprek, gampang lupa ini instance
+            yang dipakai beneran atau tempat uji — dan itu pernah bikin data
+            kehapus. */}
+        {env === 'development' && (
+          <span className="mt-1 block rounded-card bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-warn">
+            Development
+          </span>
         )}
       </div>
 

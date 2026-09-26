@@ -24,16 +24,51 @@ Semua di-set di `/etc/systemd/system/hikari.service`.
 
 | Variabel | Default | Buat apa |
 |---|---|---|
-| `HIKARI_VERSION` | `latest` | Tag rilis yang di-download (`v0.1.6`) |
+| `HIKARI_VERSION` | `latest` | Tag rilis yang di-download (`v0.2.1`) |
 | `HIKARI_PORT` | `2508` | Port panel |
 | `HIKARI_VPS_IP` | auto | IP publik buat connection string database |
 | `HIKARI_ACME_EMAIL` | kosong | Email pendaftaran Let's Encrypt |
+| `HIKARI_ENV` | `development` | Penanda environment (lihat di bawah) |
+
+### `HIKARI_ENV` — penanda environment
+
+Cuma penanda buat manusia, **bukan** pengubah perilaku. Tujuannya satu:
+biar gampang bedain "instance yang dipakai beneran" sama "tempat uji".
+
+Ini bukan teori. Satu-satunya VPS pernah dipakai buat nguji dari kondisi
+bersih berkali-kali, dan data yang ada di situ (akun, project) kehapus tanpa
+sadar.
+
+| Nilai | Efek |
+|---|---|
+| `development` (default) | Log nulis peringatan pas nyala; sidebar nampilin badge kuning "Development" |
+| `production` | Nggak ada peringatan, nggak ada badge |
+| Nilai lain | Ditolak `install.sh`; kalau di-set manual, jatuh ke `development` |
+
+**Default-nya sengaja `development`.** Anggapannya: kalau nggak ada yang
+bilang ini produksi, lebih baik diperlakukan sebagai tempat uji.
+
+Buat bikin instance ini production:
+
+```bash
+sudo HIKARI_ENV=production bash install.sh
+```
+
+Terbaca di tiga tempat: log pas nyala, `/api/health`, dan sidebar.
 
 Cara pakai:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ridhoarh/Hikari-2nd-Panel/main/install.sh -o install.sh
-sudo HIKARI_VERSION=v0.1.6 HIKARI_ACME_EMAIL=kamu@contoh.com bash install.sh
+sudo HIKARI_VERSION=v0.2.1 HIKARI_ACME_EMAIL=kamu@contoh.com bash install.sh
+```
+
+Buat instance uji, arahkan `HIKARI_DATA` dan `HIKARI_PORT` ke tempat lain biar
+data utama nggak kesentuh:
+
+```bash
+HIKARI_PORT=2600 HIKARI_DATA=/tmp/hikari-uji HIKARI_STATIC=/tmp/hikari-uji/www \
+  bun run apps/server/src/index.ts
 ```
 
 **`HIKARI_VPS_IP` — perhatikan:** kalau dikosongin, `install.sh` nanya ke

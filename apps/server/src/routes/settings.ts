@@ -3,6 +3,7 @@ import { totalmem, freemem } from 'node:os'
 import { statfs } from 'node:fs/promises'
 import type { Database } from '../db/client'
 import { HIKARI_VERSION } from '../lib/version'
+import { HIKARI_ENV } from '../lib/env'
 import { getDocker, pingDocker } from '../docker/client'
 import { formatBytes, diskPercent, isDiskWarning } from '../lib/disk'
 
@@ -62,6 +63,9 @@ export function createSettingsRoutes(deps: SettingsDeps): Hono {
 
     return c.json({
       version: HIKARI_VERSION,
+      // Ditampilin di sidebar biar kelihatan ini instance apa waktu lagi
+      // ngoprek — bedain "VPS yang dipakai" sama "tempat uji".
+      env: HIKARI_ENV,
       dataDir: deps.dataDir,
       // Port dikirim dari konfigurasi, bukan ditulis tetap di frontend —
       // halaman Settings dulu nampilin angka 2508 yang nggak ikut berubah

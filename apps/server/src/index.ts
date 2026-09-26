@@ -1,4 +1,6 @@
 import { createAppWithInternals } from './app'
+import { envLabel, HIKARI_ENV, peringatanEnv } from './lib/env'
+import { HIKARI_VERSION } from './lib/version'
 import {
   handleTerminalUpgrade,
   terminalClose,
@@ -60,4 +62,10 @@ const server = Bun.serve<TerminalSocketData>({
   },
 })
 
+console.log(`[hikari] v${HIKARI_VERSION} — ${envLabel()}`)
 console.log(`[hikari] jalan di http://0.0.0.0:${server.port}`)
+
+// Di development, peringatannya ditulis sekali pas nyala. Sengaja nggak
+// dipasang di tiap request — itu bakal jadi berisik dan malah diabaikan.
+const peringatan = peringatanEnv()
+if (peringatan) console.warn(`[hikari] ${peringatan}`)

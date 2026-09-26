@@ -27,6 +27,7 @@ ENV_HIKARI_VERSION="${HIKARI_VERSION:-}"
 ENV_HIKARI_PORT="${HIKARI_PORT:-}"
 ENV_HIKARI_VPS_IP="${HIKARI_VPS_IP:-}"
 ENV_HIKARI_ACME_EMAIL="${HIKARI_ACME_EMAIL:-}"
+ENV_HIKARI_ENV="${HIKARI_ENV:-}"
 
 if [ -f /etc/os-release ]; then
   # shellcheck disable=SC1091
@@ -44,6 +45,25 @@ VERSION="${ENV_HIKARI_VERSION:-latest}"
 PORT="${ENV_HIKARI_PORT:-2508}"
 VPS_IP="${ENV_HIKARI_VPS_IP:-}"
 ACME_EMAIL="${ENV_HIKARI_ACME_EMAIL:-}"
+
+# Penanda environment. Cuma dipakai buat nampilin label di log dan UI —
+# perilaku aplikasinya sama aja.
+#
+# Default-nya `development`, dan itu SENGAJA. Anggapannya: kalau nggak ada
+# yang bilang ini produksi, lebih baik diperlakukan sebagai tempat uji —
+# supaya nggak kejadian lagi data di VPS "iseng" dikosongin buat nguji
+# dari kondisi bersih.
+#
+# Mau bikin instance ini jadi produksi (label ijo ilang, plus dicatat di
+# log): jalankan ulang dengan HIKARI_ENV=production.
+APP_ENV="${ENV_HIKARI_ENV:-development}"
+case "${APP_ENV}" in
+  development|production) ;;
+  '')
+    APP_ENV="development" ;;
+  *)
+    fail "HIKARI_ENV='${APP_ENV}' nggak dikenal. Isinya 'development' atau 'production'." ;;
+esac
 
 # Kalau IP nggak dikasih, tebak dari interface utama. Dipakai buat nampilin
 # alamat koneksi database publik — tanpa ini panel bakal nulis 127.0.0.1,
@@ -366,6 +386,7 @@ Environment=HIKARI_PORT=${PORT}
 Environment=HIKARI_DATA=${DATA_DIR}
 Environment=HIKARI_STATIC=${DATA_DIR}/www
 Environment=HIKARI_CADDYFILE=/etc/caddy/Caddyfile
+Environment=HIKARI_ENV=${APP_ENV}
 # Dibaca panel buat nampilin alamat publik di connection string database.
 Environment=HIKARI_VPS_IP=${VPS_IP}
 # Lokasi sertifikat Caddy, dipakai buat ngecek status TLS domain beneran.
@@ -386,6 +407,16 @@ log "Selesai."
 log "Panel: http://${IP:-IP-VPS-KAMU}:${PORT}"
 log "DB:    /var/lib/hikari"
 log "Dok:   ${INSTALL_DIR}/docs"
+log "Mode:  ${APP_ENV}"
+
+# Peringatan yang susah dilewatin. Sebelum ini, satu-satunya cara tau ini
+# instance uji atau bukan adalah dari ingatan — dan itu pernah bikin data
+# di VPS dikosongin tanpa sadar.
+if [ "${APP_ENV}" = "development" ]; then
+  warn "Ini instance DEVELOPMENT. Data di sini boleh hilang, jangan dipakai"
+  warn "buat hal penting. Mau dijadikan production:"
+  warn "  sudo HIKARI_ENV=production bash install.sh"
+fi
 
 if [ -n "${IP}" ]; then
   log "Connection string publik bakal pakai IP ${IP}."

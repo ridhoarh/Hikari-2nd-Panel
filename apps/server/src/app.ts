@@ -24,6 +24,7 @@ import { getDocker } from './docker/client'
 import { hapusDbContainer } from './docker/db-containers'
 import { loadOrCreateKey } from './lib/crypto'
 import { HIKARI_VERSION } from './lib/version'
+import { HIKARI_ENV } from './lib/env'
 import { requireAuth } from './middleware/auth'
 import { createAppRoutes } from './routes/apps'
 import { createAuthRoutes } from './routes/auth'
@@ -207,7 +208,11 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
   })
 
   // --- Health ---------------------------------------------------------
-  app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
+  // `env` ikut dikirim biar gampang dibedain instance mana yang lagi dibuka —
+  // waktu ngoprek, gampang lupa ini VPS beneran atau tempat uji.
+  app.get('/api/health', (c) =>
+    c.json({ status: 'ok', version: HIKARI_VERSION, env: HIKARI_ENV })
+  )
 
   // --- Auth (publik) ---------------------------------------------------
   app.route('/api', createAuthRoutes(db, cryptoKey))

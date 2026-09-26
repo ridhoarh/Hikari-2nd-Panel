@@ -23,10 +23,12 @@ const JEDA_CEK_MS = 5 * 60 * 1000
 
 export function useVersion(): {
   version: string | null
+  env: string | null
   adaVersiBaru: boolean
   muatUlang: () => void
 } {
   const [version, setVersion] = useState<string | null>(null)
+  const [env, setEnv] = useState<string | null>(null)
   const [adaVersiBaru, setAdaVersiBaru] = useState(false)
   // Versi yang sudah kelihatan di layar. Dipakai buat ngebandingin; disimpen
   // di ref biar efeknya nggak perlu dipasang ulang tiap versinya ganti.
@@ -40,11 +42,13 @@ export function useVersion(): {
       // buat halaman yang nggak dilihat.
       if (document.visibilityState !== 'visible') return
 
-      const res = await api.get<{ version: string }>('/settings')
+      const res = await api.get<{ version: string; env: string }>('/settings')
       if (dibatalkan || !res.ok) return
 
       const baru = res.data?.version ?? null
       if (!baru) return
+
+      setEnv(res.data?.env ?? null)
 
       if (versiAwal.current === null) {
         // Pertama kali: ini versi yang lagi dipakai.
@@ -78,6 +82,7 @@ export function useVersion(): {
 
   return {
     version,
+    env,
     adaVersiBaru,
     // `location.reload()` biasa bakal pakai cache lagi. `true` bikin browser
     // ngecek ulang ke server, jadi bundle barunya beneran keambil.
