@@ -148,6 +148,20 @@ else
   TARBALL="https://github.com/${REPO}/releases/download/${VERSION}/hikari.tar.gz"
 fi
 
+# Kode lama DIBUANG dulu, bukan cuma ditimpa.
+#
+# `tar -xz` nimpa file yang namanya sama tapi nggak ngehapus yang udah nggak
+# ada di tarball. Asset frontend namanya bawa hash, jadi tiap build nama
+# barunya beda — hasilnya numpuk terus. Pernah kejadian `/opt/hikari` isi 85
+# asset padahal tarball-nya cuma 30, dan `/var/lib/hikari/www` sempet nunjuk
+# ke hash dari build lama yang udah nggak dipakai.
+#
+# Yang dibuang cuma hasil ekstrak tarball — semua yang di /opt/hikari emang
+# punya rilis, nggak ada data user di situ. Data user ada di DATA_DIR, dan
+# itu sama sekali nggak disentuh.
+mkdir -p "${INSTALL_DIR}"
+rm -rf "${INSTALL_DIR:?}"/*
+
 log "Download Hikari..."
 if ! curl -fsSL "${TARBALL}" | tar -xz -C "${INSTALL_DIR}"; then
   fail "Gagal download ${TARBALL}. Pastiin rilis-nya udah ada di GitHub Releases."
