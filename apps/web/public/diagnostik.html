@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<title>Diagnostik Hikari</title>
+<style>
+  body { font: 14px ui-monospace, monospace; background:#0b0f1a; color:#e2e8f0; padding:20px; }
+  .ok { color:#34d399 } .bad { color:#f87171 } .warn { color:#fbbf24 }
+  h2 { font-size:15px; margin-top:22px; border-bottom:1px solid #222d44; padding-bottom:4px }
+  pre { background:#111827; padding:10px; border-radius:8px; overflow-x:auto; white-space:pre-wrap; margin:6px 0 }
+</style>
+</head>
+<body>
+<h1>Diagnostik Hikari</h1>
+<p>Halaman ini ngecek kenapa panel nggak kebuka. Hasilnya muncul di bawah.</p>
+<div id="out"></div>
+
+<script>
+const out = document.getElementById('out')
+let gagal = 0
+
+function bagian(judul) {
+  const h = document.createElement('h2')
+  h.textContent = judul
+  out.appendChild(h)
+  return (teks, kelas = '') => {
+    const p = document.createElement('pre')
+    p.className = kelas
+    p.textContent = teks
+    out.appendChild(p)
+  }
+}
+
+async function uji(judul, fn) {
+  const tulis = bagian(judul)
+  try {
+    await fn(tulis)
+  } catch (e) {
+    tulis('EXCEPTION: ' + e.message, 'bad')
+    gagal++
+  }
+}
+
+// 1. Sesi login
+await uji('1. Sesi login', async (t) => {
+  const r = await fetch('/api/auth/me', { credentials: 'include' })
+  t('GET /api/auth/me -> ' + r.status)
+  if (!r.ok) {
+    t('BELUM LOGIN, atau cookie sesinya nggak kekirim.', 'bad')
+    t('Kalau kamu udah login, ini penyebab utamanya: halaman panel nggak\nbisa ambil data, jadi keliatan "nggak ada reaksi".', 'warn')
+    gagal++
+    return
+  }
+  const d = await r.json()
+  t('login sebagai: ' + d.username, 'ok')
+})
+
+// 2. Daftar project
+await uji('2. Ambil daftar project', async (t) => {
+  const r = await fetch('/api/projects', { credentials: 'include' })
+  t('GET /api/projects -> ' + r.status)
+  if (!r.ok) { t('GAGAL', 'bad'); gagal++; return }
+  const d = await r.json()
+  const daftar = d.projects ?? []
+  t('jumlah: ' + daftar.length, 'ok')
+  if (daftar[0]) {
+    t('pertama: ' + daftar[0].name + ' (' + daftar[0].id + ')')
+    window.__pid = daftar[0].id
+  }
+})
+
+// 3. Endpoint yang dipanggil halaman detail
+await uji('3. Endpoint detail project', async (t) => {
+  const id = window.__pid
+  if (!id) { t('Nggak ada project buat diuji', 'warn'); return }
+  const jalur = [
+    '/api/projects/' + id,
+    '/api/projects/' + id + '/apps',
+    '/api/projects/' + id + '/databases',
+  ]
+  for (const p of jalur) {
+    const r = await fetch(p, { credentials: 'include' })
+    t(p.replace('/api', '') + ' -> ' + r.status, r.ok ? 'ok' : 'bad')
+    if (!r.ok) { t('  ' + (await r.text()).slice(0, 300), 'bad'); gagal++ }
+  }
+})
+
+// 4. Chunk JS
+await uji('4. Chunk halaman detail project', async (t) => {
+  const html = await (await fetch('/')).text()
+  const m = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/)
+  if (!m) { t('Nggak nemu bundle utama', 'bad'); gagal++; return }
+  t('bundle: ' + m[0])
+
+  const js = await (await fetch('/' + m[0])).text()
+  const potongan = [...js.matchAll(/\.\/(_panel\.projects[^"']*\.js)/g)].map((x) => x[1])
+  if (!potongan.length) { t('Nggak ada referensi chunk detail di bundle', 'bad'); gagal++; return }
+
+  for (const c of potongan) {
+    const r = await fetch('/assets/' + c)
+    const isi = await r.text()
+    const ok = r.ok && isi.length > 100
+    t(c + ' -> ' + r.status + ', ' + isi.length + ' byte', ok ? 'ok' : 'bad')
+    if (!ok) gagal++
+  }
+})
+
+// 5. Yang diserve sekarang vs yang di disk
+await uji('5. Versi yang dimuat browser', async (t) => {
+  t('URL    : ' + location.href)
+  t('origin : ' + location.origin)
+  t('cookie aktif: ' + document.cookie.split(';').filter(Boolean).length + ' item')
+})
+
+const t = bagian('KESIMPULAN')
+if (gagal === 0) {
+  t('Semua pemeriksaan lolos.', 'ok')
+  t('Kalau halaman tetap nggak kebuka, coba HARD REFRESH (Ctrl+Shift+R / Cmd+Shift+R).\n\nAsset di-cache 1 tahun dengan nama ber-hash. Kalau sebelumnya browser sempat\nnyimpen versi lama, dia bakal terus pakai itu sampai dipaksa muat ulang.', 'warn')
+} else {
+  t(gagal + ' pemeriksaan GAGAL — lihat bagian merah di atas.', 'bad')
+}
+</script>
+</body>
+</html>

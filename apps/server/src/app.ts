@@ -174,6 +174,38 @@ export function createAppWithInternals(config: AppConfig): AppInternals {
 
   const app = new Hono()
 
+  /**
+   * Catat tiap request API yang masuk.
+   *
+   * Didaftarkan PALING AWAL, sebelum route apa pun. Di Hono, middleware cuma
+   * berlaku buat route yang didaftarin SESUDAHNYA — kalau ditaruh di bawah,
+   * request ke route yang udah terdaftar nggak bakal kecatat.
+   *
+   * Tanpa ini, "log kosong" jadi ambigu: beneran nggak ada request yang
+   * nyampe, atau nyampe tapi nggak ada yang nyatet? Waktu ada bug "klik nggak
+   * ngaruh", ketidakjelasan itu bikin diagnosanya muter-muter.
+   *
+   * Yang dicatat cuma method, path, status, dan lama — nggak ada isi body
+   * atau header, biar nggak ada rahasia yang ikut ke-log.
+   */
+  app.use('*', async (c, next) => {
+    // Aset statis terlalu berisik dan nggak berguna buat debugging.
+    const relevan = c.req.path.startsWith('/api/')
+    if (!relevan) {
+      await next()
+      return
+    }
+
+    const mulai = performance.now()
+    await next()
+    const status = c.res.status
+    const ms = Math.round(performance.now() - mulai)
+
+    // 5xx dikasih penanda biar gampang disaring waktu nyari masalah.
+    const tanda = status >= 500 ? '!!' : status >= 400 ? ' !' : '  '
+    console.log(`[api]${tanda} ${c.req.method} ${c.req.path} ${status} ${ms}ms`)
+  })
+
   // --- Health ---------------------------------------------------------
   app.get('/api/health', (c) => c.json({ status: 'ok', version: HIKARI_VERSION }))
 

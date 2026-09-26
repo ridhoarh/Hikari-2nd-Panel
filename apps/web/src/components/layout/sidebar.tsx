@@ -1,5 +1,6 @@
 import { Link, useRouter } from '@tanstack/react-router'
 import { api } from '../../lib/api'
+import { useVersion } from '../../hooks/use-version'
 
 /**
  * Navigasi utama.
@@ -64,6 +65,7 @@ const GROUPS: NavGroup[] = [
 
 export function Sidebar({ username }: { username: string }) {
   const router = useRouter()
+  const { version, adaVersiBaru, muatUlang } = useVersion()
 
   async function logout() {
     await api.post('/auth/logout')
@@ -83,7 +85,26 @@ export function Sidebar({ username }: { username: string }) {
     >
       <div className="shrink-0 px-3 pb-5">
         <span className="text-base font-semibold">Hikari</span>
+        {/* Versi ditampilin di sini, bukan cuma di halaman Settings, biar
+            waktu ada bug langsung kelihatan yang kebuka ini kode versi
+            berapa — tanpa perlu klik apa-apa dulu. */}
+        {version && (
+          <span className="ml-2 font-mono text-[11px] text-ink-subtle">v{version}</span>
+        )}
       </div>
+
+      {/* Muncul kalau servernya udah versi baru tapi halaman ini masih yang
+          lama — biasanya karena asset-nya ke-cache. Tanpa ini, gejalanya
+          bingung: fitur baru nggak ada padahal udah di-update. */}
+      {adaVersiBaru && (
+        <button
+          type="button"
+          onClick={muatUlang}
+          className="mb-4 shrink-0 rounded-card border border-brand/40 bg-brand-soft px-3 py-2 text-left text-xs text-brand-text transition-hikari hover:bg-brand-soft/80"
+        >
+          Versi baru udah siap. Klik buat muat ulang.
+        </button>
+      )}
 
       <div className="flex-1 space-y-5">
         {GROUPS.map((group) => (

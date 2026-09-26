@@ -154,7 +154,21 @@ if ! curl -fsSL "${TARBALL}" | tar -xz -C "${INSTALL_DIR}"; then
 fi
 
 # Frontend hasil build dipindah ke DATA_DIR/www biar HIKARI_STATIC nemu.
+#
+# Folder tujuannya DIHAPUS dulu, bukan cuma ditimpa sama `cp -r`.
+#
+# Asset frontend namanya bawa hash (`index-BHUM1MkG.js`), dan tiap build hash-nya
+# beda. `cp -r` nggak ngehapus file lama, jadi tiap update numpuk: pernah
+# kejadian `www/` isi 84 file padahal build-nya cuma 29. Yang lebih parah,
+# `index.html` yang diserve bisa nunjuk ke hash dari build lama yang masih
+# ketinggalan — browser-nya jalanin kode lama, dan fitur baru kayak halaman
+# detail project jadi nggak bereaksi sama sekali.
+#
+# `www` cuma berisi hasil build, nggak ada data user di dalamnya — makanya
+# aman dihapus.
 if [ -d "${INSTALL_DIR}/apps/web/dist" ]; then
+  rm -rf "${DATA_DIR}/www"
+  mkdir -p "${DATA_DIR}/www"
   cp -r "${INSTALL_DIR}/apps/web/dist/." "${DATA_DIR}/www/"
 fi
 
