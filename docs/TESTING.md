@@ -6,10 +6,35 @@ terpentingnya bukan angkanya, tapi satu pelajaran yang didapat dengan mahal:
 
 ## Perintah
 
+Ada dua alur yang beda, dan jangan ketuker:
+
+| Lagi... | Pakai | Efek |
+|---|---|---|
+| **Ngoding / ngerjain** | `./dev.sh` | Jalan dari kode sumber, data terpisah. Perubahan langsung kepakai. |
+| **Nge-deploy** | `install.sh` | Download tarball rilis ke `/opt/hikari`, jalanin dari situ |
+
+```bash
+./dev.sh                 # panel di :2600, data di /tmp/hikari-dev
+./dev.sh --port 3000     # port lain
+./dev.sh --fresh         # mulai dari data kosong
+```
+
+`dev.sh` pakai `bun run --watch`, jadi tiap file disimpen, servernya restart
+sendiri — nggak perlu matiin-nyalain manual.
+
+**Kenapa ini dipisah:** `install.sh` itu alur rilis (commit → tag → CI →
+install). Buat ngubah satu baris kode, alur itu kebalik dan lambat. Yang
+berubah cuma satu baris; dia nggak butuh rilis.
+
+`dev.sh` sengaja nolak jalan di port 2508 — biar instance develop nggak
+ketuker sama yang lagi dipakai, dan data `/var/lib/hikari` nggak kesentuh.
+
+### Perintah lain
+
 Semua dari root repo:
 
 ```bash
-bun test              # 541 tes, ~14 detik
+bun test              # 545 tes, ~14 detik
 bun run typecheck     # server + web (tsc --noEmit)
 bun run build         # build frontend
 ```

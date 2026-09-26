@@ -21,6 +21,26 @@ Buat yang mau ikut ngoprek (manusia atau agen AI):
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Langkah rilis dan variabel environment |
 | [TASK_INSTRUCTION.md](docs/TASK_INSTRUCTION.md) | Lembar kerja bertahap |
 
+## Ngoprek (develop)
+
+Buat ngerjain kodenya, **jangan** pakai `install.sh` — itu alur rilis. Pakai:
+
+```bash
+./dev.sh
+```
+
+Panelnya jalan di `http://127.0.0.1:2600`, langsung dari kode sumber, dengan
+data terpisah di `/tmp/hikari-dev`. Tiap file disimpen, servernya restart
+sendiri — dan data di `/var/lib/hikari` nggak kesentuh.
+
+```bash
+./dev.sh --port 3000     # port lain
+./dev.sh --fresh         # mulai dari data kosong
+```
+
+Cek juga [docs/
+AGENTS.md](docs/AGENTS.md) kalau ngoprek pakai agen AI.
+
 ## Install
 
 ```bash

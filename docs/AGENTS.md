@@ -7,7 +7,37 @@ bug yang pernah kejadian.
 
 ## Aturan yang nggak boleh dilanggar
 
-### 1. Nggak ada dependency baru tanpa alasan kuat
+### 1. Develop pakai `dev.sh`, JANGAN `install.sh`
+
+`install.sh` itu alur **rilis**, bukan alur kerja. Dia download tarball dari
+GitHub Releases, ekstrak ke `/opt/hikari`, dan jalanin dari situ.
+
+Kalau tiap perubahan kecil harus lewat `install.sh`, alurnya jadi:
+
+```
+edit satu baris -> commit -> tag -> tunggu CI -> install ulang
+```
+
+Itu kebalik. Yang berubah cuma satu baris; dia nggak butuh rilis.
+
+Bener:
+
+```bash
+./dev.sh              # jalan dari kode sumber, port 2600, data di /tmp
+```
+
+Perubahan langsung kepakai (`bun run --watch`), data `/var/lib/hikari` nggak
+kesentuh, dan nggak perlu nunggu CI.
+
+**Kapan `install.sh` baru beneran perlu:**
+
+- Ngerjain `install.sh` itu sendiri, atau unit systemd, atau Caddy
+- Mau mastiin tarball rilisnya beneran bisa dipasang
+- Sebelum rilis, buat verifikasi akhir
+
+Di luar itu, pakai `dev.sh`.
+
+### 2. Nggak ada dependency baru tanpa alasan kuat
 
 Runtime-nya cuma **Bun**. Server pakai `hono`, `zod`, `dockerode`, `ulid`.
 Web pakai `react`, `@tanstack/react-router`. Udah, itu aja.
@@ -150,6 +180,11 @@ ada baris yang kelihatan aneh tapi sengaja, jelasin kenapa.
 
 ### 10. Nggak ada operasi destruktif tanpa pagar
 
+- **Jangan hapus data user tanpa nanya.** Data di `/var/lib/hikari` itu kerjaan
+  pemiliknya, bukan bahan uji. Kejadian nyata: akun dan project kehapus karena
+  "cuma mau nguji dari kondisi bersih".
+- Butuh data kosong? Pakai `./dev.sh --fresh`, atau arahkan `HIKARI_DATA` ke
+  folder lain. Jangan sentuh yang utama.
 - Skrip verifikasi nggak boleh hapus apa pun tanpa ngecek label/pola dulu.
   `verify-sisa.sh` sempet mau hapus semua container `hikari-db-*` — di VPS
   produksi itu artinya database pelanggan hilang.
@@ -182,16 +217,29 @@ Jalanin ketiganya dan pastikan hijau:
 
 ```bash
 bun run typecheck    # server + web
-bun test             # 541 tes
+bun test             # 545 tes
 bun run build
 ```
 
 Kalau ada yang gagal, **jangan** bilang selesai. Kalau nggak bisa jalanin
 (misal butuh Docker), bilang jelas dan jelasin alasannya.
 
-Perubahan yang nyentuh banyak file (`app.ts`, `caddy/service.ts`,
-`install.sh`) harus diuji **di VPS sungguhan**. Bug paling serius di repo ini
-lolos typecheck, unit test, dan review — cuma ketemu waktu dijalanin:
+### Kapan perubahan perlu diuji di VPS
+
+Tidak semua. Yang **wajib** diuji di VPS sungguhan:
+
+| File | Kenapa |
+|---|---|
+| `install.sh` | Nggak bisa dites dari lokal; dia jalanin Docker & systemd |
+| `caddy/service.ts` | Cuma kelihatan gagalnya kalau Caddy-nya beneran jalan |
+| `docker/`, `db/` | Butuh container sungguhan |
+| `app.ts` (daftar `requireAuth`) | Harus dipastiin tiap endpoint 401 tanpa login |
+
+Yang **nggak** perlu: halaman frontend, komponen UI, repository, helper di
+`lib/`, parser. Itu cukup dites pakai `dev.sh` + `bun test`.
+
+Bug paling serius di repo ini lolos typecheck, unit test, dan review — cuma
+ketemu waktu dijalanin:
 
 - `redisCliEnv` punya tes sendiri yang lolos, padahal fungsinya nggak pernah
   berguna (bug-nya di perilaku `docker exec`).
